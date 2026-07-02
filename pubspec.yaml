@@ -1,0 +1,37 @@
+name: fitness_app
+description: Application mobile locale de suivi fitness (calisthénie, poids du corps, haltères).
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Base de données locale
+  drift: ^2.20.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Divers
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Codegen Drift
+  drift_dev: ^2.20.0
+  build_runner: ^2.4.13
+
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

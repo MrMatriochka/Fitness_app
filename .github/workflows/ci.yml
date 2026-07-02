@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Génère les fichiers Drift (*.g.dart) exclus du dépôt.
+      - name: Run build_runner (Drift codegen)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze
+        # Les "infos" de style (ex. prefer_const_constructors) ne bloquent pas,
+        # mais les erreurs et warnings réels (imports inutilisés, types) oui.
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test

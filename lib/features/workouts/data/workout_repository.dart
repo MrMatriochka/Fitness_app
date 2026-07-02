@@ -203,6 +203,38 @@ class WorkoutRepository {
     await maybeRecord(RecordType.maxVolume, volume);
   }
 
+  /// Volume total par exercice (somme des reps, ou des secondes pour les
+  /// exercices au temps) sur les séries validées depuis [start]. Sert au calcul
+  /// de la charge musculaire hebdomadaire (§7, §12.5).
+  Future<Map<int, double>> volumeByExerciseSince(DateTime start) async {
+    final now = DateTime.now();
+    final sessions =
+        await sessionsBetween(start, now.add(const Duration(days: 1)));
+    final sessionIds = sessions.map((s) => s.id).toList();
+    if (sessionIds.isEmpty) return {};
+
+    final pes = await (_db.select(_db.performedExercises)
+          ..where((t) => t.workoutSessionId.isIn(sessionIds)))
+        .get();
+    if (pes.isEmpty) return {};
+
+    final exerciseByPe = {for (final pe in pes) pe.id: pe.exerciseId};
+    final sets = await (_db.select(_db.performedSets)
+          ..where((t) =>
+              t.performedExerciseId.isIn(exerciseByPe.keys.toList()) &
+              t.completed.equals(true)))
+        .get();
+
+    final volume = <int, double>{};
+    for (final s in sets) {
+      final exerciseId = exerciseByPe[s.performedExerciseId];
+      if (exerciseId == null) continue;
+      final v = (s.reps ?? 0) > 0 ? (s.reps ?? 0) : (s.seconds ?? 0);
+      volume.update(exerciseId, (x) => x + v, ifAbsent: () => v.toDouble());
+    }
+    return volume;
+  }
+
   Future<List<PersonalRecord>> recordsForExercise(int exerciseId) {
     return (_db.select(_db.personalRecords)
           ..where((t) => t.exerciseId.equals(exerciseId))

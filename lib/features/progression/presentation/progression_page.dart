@@ -34,31 +34,34 @@ class ProgressionPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Progression')),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(_progressProvider),
+        onRefresh: () async {
+          ref.invalidate(_progressProvider);
+          ref.invalidate(weeklyMuscleLoadProvider);
+        },
         child: progress.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Erreur : $e')),
-          data: (list) {
-            if (list.isEmpty) {
-              return ListView(
-                children: const [
-                  Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'Aucun record pour l\'instant.\n'
-                      'Termine une séance pour voir apparaître tes performances 📈',
-                      textAlign: TextAlign.center,
-                    ),
+          data: (list) => ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const _MuscleLoadCard(),
+              const SizedBox(height: 8),
+              Text('Records personnels',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              if (list.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Aucun record pour l\'instant.\n'
+                    'Termine une séance pour voir apparaître tes performances 📈',
+                    textAlign: TextAlign.center,
                   ),
-                ],
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: list.length,
-              itemBuilder: (context, i) => _ProgressCard(list[i]),
-            );
-          },
+                )
+              else
+                for (final p in list) _ProgressCard(p),
+            ],
+          ),
         ),
       ),
     );
@@ -116,4 +119,109 @@ class _ProgressCard extends StatelessWidget {
   }
 
   String _fmt(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+}
+
+/// Carte musculaire des 7 derniers jours (§7) + recommandation d'équilibrage
+/// (§12.7). Barres proportionnelles à la charge par groupe.
+class _MuscleLoadCard extends ConsumerWidget {
+  const _MuscleLoadCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final load = ref.watch(weeklyMuscleLoadProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Muscles — 7 derniers jours',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            load.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => Text('Erreur : $e'),
+              data: (data) {
+                if (data.byGroup.isEmpty) {
+                  return const Text(
+                    'Pas encore de données. Termine une séance pour voir tes '
+                    'muscles sollicités.',
+                  );
+                }
+                final maxLoad =
+                    data.byGroup.values.reduce((a, b) => a > b ? a : b);
+                final entries = data.byGroup.entries.toList()
+                  ..sort((a, b) => b.value.compareTo(a.value));
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final e in entries)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(e.key),
+                                Text(e.value.round().toString(),
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: maxLoad == 0 ? 0 : e.value / maxLoad,
+                                minHeight: 8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (data.underworked.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _Recommendation(groups: data.underworked),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Recommendation extends StatelessWidget {
+  const _Recommendation({required this.groups});
+  final List<String> groups;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('💡', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Groupe(s) peu travaillé(s) cette semaine : ${groups.join(', ')}. '
+              'Pense à équilibrer ton entraînement.',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

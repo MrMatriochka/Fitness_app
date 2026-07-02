@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
+import '../../../shared/widgets/countdown_timer.dart';
 import '../../cycles/data/cycle_repository.dart';
 import '../data/workout_repository.dart';
 
-/// Onglet Séance (§8.5) : liste des exercices du jour, validation série par
-/// série, enregistrement de la performance. Priorité UX : rapide et simple (§19.4).
+/// Onglet Séance (§8.5) : liste des exercices du jour, timers de repos /
+/// d'exercice (§5), validation série par série, enregistrement de la
+/// performance avec ressenti et estimation calorique (§6).
 class SessionPage extends ConsumerStatefulWidget {
   const SessionPage({super.key});
 
@@ -18,6 +20,7 @@ class SessionPage extends ConsumerStatefulWidget {
 class _SessionPageState extends ConsumerState<SessionPage> {
   /// Séries validées : clé "exerciseIndex:setIndex".
   final Set<String> _done = {};
+  final DateTime _startedAt = DateTime.now();
   bool _saving = false;
 
   @override
@@ -58,6 +61,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   Widget _exerciseCard(int exerciseIndex, PlannedExercise p) {
     final sets = p.template.targetSets ?? 1;
     final isTime = (p.template.targetSeconds ?? 0) > 0;
+    final rest = p.template.restSeconds ?? 0;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -68,8 +72,8 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                 style: Theme.of(context).textTheme.titleMedium),
             Text(
               isTime
-                  ? 'Objectif : ${p.template.targetSeconds}s par série · repos ${p.template.restSeconds ?? 0}s'
-                  : 'Objectif : ${p.template.targetReps ?? 0} reps par série · repos ${p.template.restSeconds ?? 0}s',
+                  ? 'Objectif : ${p.template.targetSeconds}s par série · repos ${rest}s'
+                  : 'Objectif : ${p.template.targetReps ?? 0} reps par série · repos ${rest}s',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -92,6 +96,31 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                   ),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (isTime)
+                  TextButton.icon(
+                    onPressed: () => showCountdownSheet(
+                      context,
+                      title: p.exercise.name,
+                      seconds: p.template.targetSeconds ?? 0,
+                    ),
+                    icon: const Icon(Icons.timer_outlined),
+                    label: Text('Démarrer ${p.template.targetSeconds}s'),
+                  ),
+                if (rest > 0)
+                  TextButton.icon(
+                    onPressed: () => showCountdownSheet(
+                      context,
+                      title: 'Repos',
+                      seconds: rest,
+                    ),
+                    icon: const Icon(Icons.hourglass_bottom),
+                    label: Text('Repos ${rest}s'),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -99,6 +128,9 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   }
 
   Future<void> _finish(List<PlannedExercise> list) async {
+    final difficulty = await _askDifficulty();
+    if (difficulty == null) return; // annulé
+
     setState(() => _saving = true);
     try {
       var totalSets = 0;
@@ -134,14 +166,27 @@ class _SessionPageState extends ConsumerState<SessionPage> {
               ? SessionStatus.completed
               : SessionStatus.partial);
 
+      final durationSeconds = DateTime.now().difference(_startedAt).inSeconds;
       final cycle = await ref.read(activeCycleProvider.future);
       final template = await ref.read(todayTemplateProvider.future);
+      final profile = await ref.read(profileRepositoryProvider).getProfile();
+
+      double? kcal;
+      if (profile?.weightKg != null && durationSeconds > 0) {
+        kcal = ref.read(caloriesServiceProvider).estimateFromSeconds(
+              durationSeconds: durationSeconds,
+              weightKg: profile!.weightKg!,
+              intensity: _intensityFor(difficulty),
+            );
+      }
 
       await ref.read(workoutRepositoryProvider).saveSession(
             templateId: template?.id,
             cycleId: cycle?.id,
             date: DateTime.now(),
             status: status,
+            durationSeconds: durationSeconds,
+            perceivedDifficulty: difficulty,
             performed: performed,
             sessionWasPlanned: template != null,
           );
@@ -149,22 +194,107 @@ class _SessionPageState extends ConsumerState<SessionPage> {
       if (!mounted) return;
       _done.clear();
       ref.invalidate(streakSummaryProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_message(status))),
-      );
+      ref.invalidate(weeklyMuscleLoadProvider);
+      await _showResult(status, kcal, durationSeconds);
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<int?> _askDifficulty() {
+    var value = 3.0;
+    return showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Ressenti de la séance'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Difficulté perçue : ${value.round()} / 5'),
+              Slider(
+                value: value,
+                min: 1,
+                max: 5,
+                divisions: 4,
+                label: '${value.round()}',
+                onChanged: (v) => setLocal(() => value = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, value.round()),
+              child: const Text('Valider'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showResult(
+      SessionStatus status, double? kcal, int durationSeconds) {
+    final minutes = (durationSeconds / 60).round();
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_title(status)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_message(status)),
+            const SizedBox(height: 12),
+            Text('Durée : $minutes min'),
+            if (kcal != null)
+              Text('Calories estimées : ~${kcal.round()} kcal')
+            else
+              const Text(
+                'Renseigne ton poids dans le profil pour estimer les calories.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Intensity _intensityFor(int difficulty) {
+    if (difficulty <= 2) return Intensity.light;
+    if (difficulty >= 4) return Intensity.intense;
+    return Intensity.moderate;
+  }
+
+  String _title(SessionStatus status) {
+    switch (status) {
+      case SessionStatus.completed:
+        return 'Séance validée ! 🔥';
+      case SessionStatus.partial:
+        return 'Séance partielle 💪';
+      default:
+        return 'Séance manquée';
     }
   }
 
   String _message(SessionStatus status) {
     switch (status) {
       case SessionStatus.completed:
-        return 'Séance validée ! 🔥 Flamme programme conservée.';
+        return 'Flamme programme conservée. Bravo !';
       case SessionStatus.partial:
-        return 'Séance partielle enregistrée. Activité validée 💪';
+        return 'Activité validée — chaque effort compte.';
       default:
-        return 'Aucune série validée — séance marquée comme manquée.';
+        return 'Aucune série validée. On se rattrape demain.';
     }
   }
 }

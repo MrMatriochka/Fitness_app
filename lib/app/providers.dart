@@ -75,3 +75,40 @@ final streakSummaryProvider =
     program: service.programStreak(days, today: today),
   );
 });
+
+/// Charge musculaire des 7 derniers jours : par groupe, par muscle, et groupes
+/// sous-travaillés (§7, §12.5, §12.7).
+final weeklyMuscleLoadProvider = FutureProvider<
+    ({
+      Map<String, double> byGroup,
+      Map<String, double> byMuscle,
+      List<String> underworked,
+    })>((ref) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final exerciseRepo = ref.watch(exerciseRepositoryProvider);
+  final service = ref.watch(muscleLoadServiceProvider);
+
+  final since = DateTime.now().subtract(const Duration(days: 7));
+  final volumeByExercise = await workoutRepo.volumeByExerciseSince(since);
+
+  final performed = <PerformedForLoad>[];
+  for (final entry in volumeByExercise.entries) {
+    final shares = await exerciseRepo.musclesForExercise(entry.key);
+    performed.add(PerformedForLoad(
+      volume: entry.value,
+      shares: shares
+          .map((s) => MuscleShare(
+                muscleName: s.muscleName,
+                group: s.group,
+                contributionPercent: s.contributionPercent,
+              ))
+          .toList(),
+    ));
+  }
+
+  return (
+    byGroup: service.loadByGroup(performed),
+    byMuscle: service.loadByMuscle(performed),
+    underworked: service.underworkedGroups(performed),
+  );
+});

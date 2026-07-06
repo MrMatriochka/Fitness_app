@@ -6,6 +6,7 @@ import '../features/cycles/data/cycle_repository.dart';
 import '../features/exercises/data/exercise_repository.dart';
 import '../features/muscles/domain/muscle_load_service.dart';
 import '../features/profile/data/profile_repository.dart';
+import '../features/progression/domain/progression_service.dart';
 import '../features/streaks/domain/streak_service.dart';
 import '../features/workouts/data/workout_repository.dart';
 
@@ -22,6 +23,7 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 final streakServiceProvider = Provider((ref) => const StreakService());
 final caloriesServiceProvider = Provider((ref) => const CaloriesService());
 final muscleLoadServiceProvider = Provider((ref) => const MuscleLoadService());
+final progressionServiceProvider = Provider((ref) => const ProgressionService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(

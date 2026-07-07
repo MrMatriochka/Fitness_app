@@ -66,6 +66,12 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: _pickExpress,
+            icon: const Icon(Icons.timer_outlined),
+            label: const Text('Séance express (10 / 15 / 20 min)'),
+          ),
           const SizedBox(height: 12),
           if (_items.isEmpty)
             const Padding(
@@ -255,6 +261,60 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
           targetWeightKg: p.template.targetWeightKg,
         ));
       }
+    });
+  }
+
+  /// Charge une séance express préfaite (§9.2) : circuit court 10 / 15 / 20 min.
+  Future<void> _pickExpress() async {
+    const presets = <int, List<({String name, int sets, int reps, int seconds})>>{
+      10: [
+        (name: 'Pompes classiques', sets: 3, reps: 12, seconds: 0),
+        (name: 'Squats poids du corps', sets: 3, reps: 20, seconds: 0),
+        (name: 'Gainage (planche)', sets: 2, reps: 0, seconds: 45),
+      ],
+      15: [
+        (name: 'Pompes classiques', sets: 3, reps: 15, seconds: 0),
+        (name: 'Rowing haltère', sets: 3, reps: 12, seconds: 0),
+        (name: 'Squats poids du corps', sets: 3, reps: 20, seconds: 0),
+        (name: 'Gainage (planche)', sets: 2, reps: 0, seconds: 45),
+      ],
+      20: [
+        (name: 'Pompes classiques', sets: 4, reps: 15, seconds: 0),
+        (name: 'Tractions pronation', sets: 3, reps: 8, seconds: 0),
+        (name: 'Squats poids du corps', sets: 4, reps: 20, seconds: 0),
+        (name: 'Gainage (planche)', sets: 3, reps: 0, seconds: 45),
+      ],
+    };
+
+    final minutes = await showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Séance express'),
+        children: [
+          for (final m in presets.keys)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, m),
+              child: Text('$m minutes'),
+            ),
+        ],
+      ),
+    );
+    if (minutes == null) return;
+
+    final all = await ref.read(exerciseRepositoryProvider).getAll();
+    final byName = {for (final e in all) e.name: e};
+    if (!mounted) return;
+    setState(() {
+      _items
+        ..clear()
+        ..addAll(presets[minutes]!
+            .where((p) => byName.containsKey(p.name))
+            .map((p) => _FreeItem(
+                  exercise: byName[p.name]!,
+                  sets: p.sets,
+                  targetReps: p.reps > 0 ? p.reps : null,
+                  targetSeconds: p.seconds > 0 ? p.seconds : null,
+                )));
     });
   }
 

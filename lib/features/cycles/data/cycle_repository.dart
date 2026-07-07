@@ -39,6 +39,12 @@ class CycleRepository {
         .getSingleOrNull();
   }
 
+  Future<List<WorkoutTemplate>> templatesForCycle(int cycleId) {
+    return (_db.select(_db.workoutTemplates)
+          ..where((t) => t.cycleId.equals(cycleId)))
+        .get();
+  }
+
   Future<List<PlannedExercise>> exercisesForTemplate(int templateId) async {
     final query = _db.select(_db.workoutExerciseTemplates).join([
       innerJoin(

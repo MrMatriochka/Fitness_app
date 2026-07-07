@@ -3,65 +3,54 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
-import '../../../core/database/app_database.dart';
 
-/// Données d'affichage du mois courant : statut de séance par jour.
-final _monthProvider = FutureProvider<Map<int, SessionStatus>>((ref) async {
-  final now = DateTime.now();
-  final start = DateTime(now.year, now.month, 1);
-  final end = DateTime(now.year, now.month + 1, 1);
-  final sessions =
-      await ref.watch(workoutRepositoryProvider).sessionsBetween(start, end);
-  final byDay = <int, SessionStatus>{};
-  for (final WorkoutSession s in sessions) {
-    byDay[s.date.day] =
-        enumFromName(SessionStatus.values, s.status, SessionStatus.completed);
-  }
-  return byDay;
-});
-
-/// Onglet Calendrier (§8.4). Vue mois simple : régularité en un coup d'œil.
+/// Onglet Calendrier (§8.4). Vue mois : statut des séances + flammes d'activité.
 class CalendarPage extends ConsumerWidget {
   const CalendarPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final month = ref.watch(_monthProvider);
+    final month = ref.watch(calendarMonthProvider);
     final now = DateTime.now();
     final firstWeekday = DateTime(now.year, now.month, 1).weekday; // 1=lundi
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
 
     return Scaffold(
       appBar: AppBar(title: Text(_monthLabel(now))),
-      body: month.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Erreur : $e')),
-        data: (byDay) => Column(
-          children: [
-            const _WeekHeader(),
-            Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.all(8),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 7,
-                  mainAxisSpacing: 4,
-                  crossAxisSpacing: 4,
+      body: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(calendarMonthProvider),
+        child: month.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Erreur : $e')),
+          data: (data) => Column(
+            children: [
+              const _WeekHeader(),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisSpacing: 4,
+                    crossAxisSpacing: 4,
+                  ),
+                  itemCount: firstWeekday - 1 + daysInMonth,
+                  itemBuilder: (context, index) {
+                    final dayNumber = index - (firstWeekday - 1) + 1;
+                    if (dayNumber < 1) return const SizedBox.shrink();
+                    return _DayCell(
+                      day: dayNumber,
+                      isToday: dayNumber == now.day,
+                      status: data.status[dayNumber],
+                      hasActivity: data.activityDays.contains(dayNumber),
+                      hasBonus: data.bonusDays.contains(dayNumber),
+                    );
+                  },
                 ),
-                itemCount: firstWeekday - 1 + daysInMonth,
-                itemBuilder: (context, index) {
-                  final dayNumber = index - (firstWeekday - 1) + 1;
-                  if (dayNumber < 1) return const SizedBox.shrink();
-                  return _DayCell(
-                    day: dayNumber,
-                    isToday: dayNumber == now.day,
-                    status: byDay[dayNumber],
-                  );
-                },
               ),
-            ),
-            const _Legend(),
-          ],
+              const _Legend(),
+            ],
+          ),
         ),
       ),
     );
@@ -99,10 +88,18 @@ class _WeekHeader extends StatelessWidget {
 }
 
 class _DayCell extends StatelessWidget {
-  const _DayCell({required this.day, required this.isToday, this.status});
+  const _DayCell({
+    required this.day,
+    required this.isToday,
+    required this.hasActivity,
+    required this.hasBonus,
+    this.status,
+  });
 
   final int day;
   final bool isToday;
+  final bool hasActivity;
+  final bool hasBonus;
   final SessionStatus? status;
 
   @override
@@ -116,16 +113,29 @@ class _DayCell extends StatelessWidget {
             ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
             : null,
       ),
-      child: Center(
-        child: Text(
-          '$day',
-          style: TextStyle(
-            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-            color: color == null
-                ? null
-                : Theme.of(context).colorScheme.onPrimary,
+      child: Stack(
+        children: [
+          Center(
+            child: Text(
+              '$day',
+              style: TextStyle(
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                color: color == null
+                    ? null
+                    : Theme.of(context).colorScheme.onPrimary,
+              ),
+            ),
           ),
-        ),
+          if (hasActivity || hasBonus)
+            Positioned(
+              right: 2,
+              top: 1,
+              child: Text(
+                hasBonus ? '✨' : '🔥',
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -170,6 +180,10 @@ class _Legend extends StatelessWidget {
           item(scheme.tertiary, 'Partielle'),
           item(scheme.secondary, 'Libre'),
           item(scheme.error, 'Manquée'),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [Text('🔥 activité   ✨ bonus')],
+          ),
         ],
       ),
     );

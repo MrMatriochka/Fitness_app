@@ -58,6 +58,14 @@ class WorkoutRepository {
         .get();
   }
 
+  Future<List<StreakEvent>> streakEventsBetween(DateTime start, DateTime end) {
+    return (_db.select(_db.streakEvents)
+          ..where((t) =>
+              t.date.isBiggerOrEqualValue(start) &
+              t.date.isSmallerThanValue(end)))
+        .get();
+  }
+
   Future<List<StreakDay>> allStreakDays() async {
     final rows = await _db.select(_db.streakEvents).get();
     return rows

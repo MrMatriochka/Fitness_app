@@ -91,6 +91,48 @@ final streakSummaryProvider =
   );
 });
 
+/// Données du calendrier du mois courant (§8.4) : statut de séance par jour +
+/// jours avec activité (flamme) ou bonus.
+final calendarMonthProvider = FutureProvider<
+    ({
+      Map<int, SessionStatus> status,
+      Set<int> activityDays,
+      Set<int> bonusDays,
+    })>((ref) async {
+  final repo = ref.watch(workoutRepositoryProvider);
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, 1);
+  final end = DateTime(now.year, now.month + 1, 1);
+
+  final sessions = await repo.sessionsBetween(start, end);
+  final status = <int, SessionStatus>{};
+  for (final s in sessions) {
+    status[s.date.day] =
+        enumFromName(SessionStatus.values, s.status, SessionStatus.completed);
+  }
+
+  final events = await repo.streakEventsBetween(start, end);
+  final activityDays = <int>{};
+  final bonusDays = <int>{};
+  for (final e in events) {
+    final type =
+        enumFromName(StreakEventType.values, e.type, StreakEventType.activity);
+    if (type == StreakEventType.activity) activityDays.add(e.date.day);
+    if (type == StreakEventType.bonus) bonusDays.add(e.date.day);
+  }
+
+  return (status: status, activityDays: activityDays, bonusDays: bonusDays);
+});
+
+/// Invalide tous les providers dérivés des séances/flammes. À appeler après
+/// toute écriture (fin de séance, séance libre, outils debug).
+void invalidateSessionData(WidgetRef ref) {
+  ref.invalidate(streakSummaryProvider);
+  ref.invalidate(weeklySummaryProvider);
+  ref.invalidate(weeklyMuscleLoadProvider);
+  ref.invalidate(calendarMonthProvider);
+}
+
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,
 /// nouveaux records.
 final weeklySummaryProvider = FutureProvider<

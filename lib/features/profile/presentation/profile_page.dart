@@ -198,8 +198,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _debugSeedHistory() async {
     await ref.read(debugRepositoryProvider).seedDemoHistory();
-    ref.invalidate(streakSummaryProvider);
-    ref.invalidate(weeklyMuscleLoadProvider);
+    invalidateSessionData(ref);
     if (!mounted) return;
     await _load();
     if (!mounted) return;
@@ -232,8 +231,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (confirm != true) return;
 
     await ref.read(debugRepositoryProvider).resetUserData();
-    ref.invalidate(streakSummaryProvider);
-    ref.invalidate(weeklyMuscleLoadProvider);
+    invalidateSessionData(ref);
     ref.invalidate(todayTemplateProvider);
     ref.invalidate(todayPlannedProvider);
     if (!mounted) return;

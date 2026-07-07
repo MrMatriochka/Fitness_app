@@ -36,6 +36,15 @@ class ExerciseRepository {
         .getSingleOrNull();
   }
 
+  /// Règle de progression d'un exercice (limites + variante suivante), si définie
+  /// (§10.4, §12.1).
+  Future<ProgressionRule?> progressionRuleFor(int exerciseId) {
+    return (_db.select(_db.progressionRules)
+          ..where((t) => t.exerciseId.equals(exerciseId))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
   Future<int> createCustom({
     required String name,
     required MeasurementType measurementType,

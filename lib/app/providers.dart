@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/database/app_database.dart';
 import '../features/calories/domain/calories_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
+import '../features/debug/data/debug_repository.dart';
 import '../features/exercises/data/exercise_repository.dart';
 import '../features/muscles/domain/muscle_load_service.dart';
 import '../features/profile/data/profile_repository.dart';
@@ -39,6 +40,17 @@ final workoutRepositoryProvider = Provider(
   (ref) => WorkoutRepository(
     ref.watch(databaseProvider),
     streakService: ref.watch(streakServiceProvider),
+  ),
+);
+
+/// Outils de debug (réservés au build debug, cf. `kDebugMode` côté UI).
+final debugRepositoryProvider = Provider(
+  (ref) => DebugRepository(
+    ref.watch(databaseProvider),
+    ref.watch(cycleRepositoryProvider),
+    ref.watch(exerciseRepositoryProvider),
+    ref.watch(profileRepositoryProvider),
+    ref.watch(workoutRepositoryProvider),
   ),
 );
 

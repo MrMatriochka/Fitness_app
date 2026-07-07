@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/database/app_database.dart';
+import '../../exercises/presentation/exercise_library_page.dart';
 
 /// Onglet Profil (§8.7). Données physiques modifiables (R-008) et historique
 /// des mesures corporelles (§6.3).
@@ -126,6 +127,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
           const SizedBox(height: 8),
           if (_profileId != null) _MeasurementsList(profileId: _profileId!),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ExerciseLibraryPage(),
+              ),
+            ),
+            icon: const Icon(Icons.menu_book_outlined),
+            label: const Text('Bibliothèque d\'exercices'),
+          ),
           if (kDebugMode) _buildDebugSection(),
         ],
       ),

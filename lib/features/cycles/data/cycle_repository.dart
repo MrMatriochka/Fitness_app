@@ -88,19 +88,27 @@ class CycleRepository {
     );
   }
 
-  /// Crée un cycle "starter" Push / Pull / Legs sur [durationWeeks] semaines,
-  /// avec une dernière semaine en déload (§3.1, §12.1). Utilisé pour amorcer la
-  /// première boucle. Renvoie l'id du cycle créé.
+  /// Archive tous les cycles actifs (avant d'en activer un nouveau).
+  Future<void> deactivateActiveCycles() async {
+    await (_db.update(_db.cycles)
+          ..where((t) => t.status.equals(CycleStatus.active.name)))
+        .write(CyclesCompanion(status: Value(CycleStatus.archived.name)));
+  }
+
+  /// Crée un cycle sur [durationWeeks] semaines, avec une dernière semaine en
+  /// déload (§3.1, §12.1). Utilisé par le cycle "starter" et le créateur manuel
+  /// (§13.2). Renvoie l'id du cycle créé.
   Future<int> createStarterCycle({
     required String name,
     required int durationWeeks,
     required Map<int, List<({int exerciseId, int sets, int reps, int seconds, int rest})>>
         sessionsByWeekday,
+    String goal = 'Force générale',
   }) async {
     final cycleId = await _db.into(_db.cycles).insert(
           CyclesCompanion.insert(
             name: name,
-            goal: const Value('Force générale'),
+            goal: Value(goal),
             durationWeeks: Value(durationWeeks),
             startDate: Value(DateTime.now()),
             status: CycleStatus.active.name,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Timer à rebours réutilisable pour les timers de repos et d'exercice (§5).
 ///
@@ -50,6 +51,7 @@ class _CountdownTimerState extends State<CountdownTimer> {
         if (_remaining <= 0) {
           _remaining = 0;
           _stop();
+          _notifyEnd();
           widget.onFinished?.call();
         }
       });
@@ -65,6 +67,13 @@ class _CountdownTimerState extends State<CountdownTimer> {
   void _reset() {
     _stop();
     setState(() => _remaining = widget.seconds);
+  }
+
+  /// Signale la fin du timer : vibration + son système (§5). Pas de dépendance
+  /// native supplémentaire.
+  void _notifyEnd() {
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.alert);
   }
 
   String get _label {

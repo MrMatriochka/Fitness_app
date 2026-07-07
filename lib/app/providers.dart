@@ -55,6 +55,10 @@ final debugRepositoryProvider = Provider(
   ),
 );
 
+/// Bibliothèque complète des exercices (§8, US-004).
+final exerciseListProvider =
+    FutureProvider((ref) => ref.watch(exerciseRepositoryProvider).getAll());
+
 // --- Données observées par l'UI ---
 final profileProvider = StreamProvider(
   (ref) => ref.watch(profileRepositoryProvider).watchProfile(),

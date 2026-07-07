@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../cycles/data/cycle_repository.dart';
+import '../../cycles/presentation/cycle_builder_page.dart';
 
 /// Onglet Accueil (§8.3) : séance du jour, flammes, création du cycle starter.
 class HomePage extends ConsumerWidget {
@@ -14,7 +15,20 @@ class HomePage extends ConsumerWidget {
     final cycle = ref.watch(activeCycleProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Accueil')),
+      appBar: AppBar(
+        title: const Text('Accueil'),
+        actions: [
+          IconButton(
+            tooltip: 'Nouveau cycle',
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const CycleBuilderPage(),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(streakSummaryProvider);
@@ -41,7 +55,14 @@ class HomePage extends ConsumerWidget {
             const SizedBox(height: 12),
             cycle.when(
               data: (c) => c == null
-                  ? _NoCycleCard(onCreate: () => _createStarterCycle(ref))
+                  ? _NoCycleCard(
+                      onCreate: () => _createStarterCycle(ref),
+                      onCustom: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const CycleBuilderPage(),
+                        ),
+                      ),
+                    )
                   : _TodayCard(cycleName: c.name),
               loading: () => const _LoadingCard(),
               error: (e, _) => _ErrorCard('$e'),
@@ -207,9 +228,10 @@ class _TodayCard extends ConsumerWidget {
 }
 
 class _NoCycleCard extends StatelessWidget {
-  const _NoCycleCard({required this.onCreate});
+  const _NoCycleCard({required this.onCreate, required this.onCustom});
 
   final VoidCallback onCreate;
+  final VoidCallback onCustom;
 
   @override
   Widget build(BuildContext context) {
@@ -224,13 +246,20 @@ class _NoCycleCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'Démarre un cycle Push / Pull / Legs de 6 semaines '
-              '(lundi, mercredi, vendredi) avec une semaine de déload.',
+              '(lundi, mercredi, vendredi) avec une semaine de déload, '
+              'ou crée le tien sur mesure.',
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: onCreate,
-              icon: const Icon(Icons.add),
-              label: const Text('Créer le cycle starter'),
+              icon: const Icon(Icons.bolt),
+              label: const Text('Cycle starter (rapide)'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onCustom,
+              icon: const Icon(Icons.tune),
+              label: const Text('Cycle personnalisé'),
             ),
           ],
         ),

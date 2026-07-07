@@ -243,6 +243,25 @@ class WorkoutRepository {
     return volume;
   }
 
+  /// Dernières séances réalisées (historique), les plus récentes d'abord.
+  Future<List<WorkoutSession>> recentSessions({int limit = 30}) {
+    return (_db.select(_db.workoutSessions)
+          ..orderBy([(t) => OrderingTerm.desc(t.date)])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Séances réalisées un jour donné (pour le détail du calendrier).
+  Future<List<WorkoutSession>> sessionsOnDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return (_db.select(_db.workoutSessions)
+          ..where((t) =>
+              t.date.isBiggerOrEqualValue(start) &
+              t.date.isSmallerThanValue(end)))
+        .get();
+  }
+
   Future<List<PersonalRecord>> recordsSince(DateTime start) {
     return (_db.select(_db.personalRecords)
           ..where((t) => t.date.isBiggerOrEqualValue(start)))

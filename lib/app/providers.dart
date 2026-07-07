@@ -144,6 +144,7 @@ void invalidateSessionData(WidgetRef ref) {
   ref.invalidate(weeklyMuscleLoadProvider);
   ref.invalidate(calendarMonthProvider);
   ref.invalidate(recoveryProvider);
+  ref.invalidate(recentSessionsProvider);
 }
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,
@@ -196,6 +197,10 @@ Intensity intensityFromDifficulty(int? difficulty) {
   if (difficulty >= 4) return Intensity.intense;
   return Intensity.moderate;
 }
+
+/// Historique des dernières séances réalisées (onglet Progression).
+final recentSessionsProvider =
+    FutureProvider((ref) => ref.watch(workoutRepositoryProvider).recentSessions());
 
 /// Charge musculaire des 7 derniers jours : par groupe, par muscle, et groupes
 /// sous-travaillés (§7, §12.5, §12.7).

@@ -44,6 +44,13 @@ class CalendarPage extends ConsumerWidget {
                       status: data.status[dayNumber],
                       hasActivity: data.activityDays.contains(dayNumber),
                       hasBonus: data.bonusDays.contains(dayNumber),
+                      onTap: () => _showDayDetails(
+                        context,
+                        DateTime(now.year, now.month, dayNumber),
+                        status: data.status[dayNumber],
+                        hasActivity: data.activityDays.contains(dayNumber),
+                        hasBonus: data.bonusDays.contains(dayNumber),
+                      ),
                     );
                   },
                 ),
@@ -62,6 +69,66 @@ class CalendarPage extends ConsumerWidget {
       'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
     ];
     return '${months[d.month - 1]} ${d.year}';
+  }
+
+  void _showDayDetails(
+    BuildContext context,
+    DateTime date, {
+    SessionStatus? status,
+    required bool hasActivity,
+    required bool hasBonus,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final lines = <String>[
+          if (status != null) 'Séance : ${_statusLabel(status)}',
+          if (hasActivity) '🔥 Activité enregistrée',
+          if (hasBonus) '✨ Activité bonus',
+        ];
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${date.day.toString().padLeft(2, '0')}/'
+                '${date.month.toString().padLeft(2, '0')}/${date.year}',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              if (lines.isEmpty)
+                const Text('Rien enregistré ce jour-là.')
+              else
+                for (final l in lines)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(l),
+                  ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _statusLabel(SessionStatus s) {
+    switch (s) {
+      case SessionStatus.completed:
+        return 'complète';
+      case SessionStatus.partial:
+        return 'partielle';
+      case SessionStatus.freeSession:
+        return 'libre';
+      case SessionStatus.missed:
+        return 'manquée';
+      case SessionStatus.planned:
+        return 'prévue';
+      case SessionStatus.inProgress:
+        return 'en cours';
+    }
   }
 }
 
@@ -93,6 +160,7 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.hasActivity,
     required this.hasBonus,
+    required this.onTap,
     this.status,
   });
 
@@ -100,15 +168,19 @@ class _DayCell extends StatelessWidget {
   final bool isToday;
   final bool hasActivity;
   final bool hasBonus;
+  final VoidCallback onTap;
   final SessionStatus? status;
 
   @override
   Widget build(BuildContext context) {
     final color = _statusColor(context, status);
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(8),
         border: isToday
             ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
             : null,
@@ -137,7 +209,7 @@ class _DayCell extends StatelessWidget {
             ),
         ],
       ),
-    );
+    ));
   }
 
   Color? _statusColor(BuildContext context, SessionStatus? s) {

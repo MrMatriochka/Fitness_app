@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/constants/enums.dart';
 import '../core/database/app_database.dart';
 import '../features/calories/domain/calories_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
@@ -89,6 +90,57 @@ final streakSummaryProvider =
     program: service.programStreak(days, today: today),
   );
 });
+
+/// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,
+/// nouveaux records.
+final weeklySummaryProvider = FutureProvider<
+    ({int sessions, int minutes, int kcal, int newRecords})>((ref) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final calories = ref.watch(caloriesServiceProvider);
+  final profile = await ref.watch(profileRepositoryProvider).getProfile();
+
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, now.day)
+      .subtract(Duration(days: now.weekday - 1));
+  final sessions =
+      await workoutRepo.sessionsBetween(start, now.add(const Duration(days: 1)));
+
+  var count = 0;
+  var minutes = 0;
+  var kcal = 0.0;
+  for (final s in sessions) {
+    if (s.status == SessionStatus.completed.name ||
+        s.status == SessionStatus.partial.name ||
+        s.status == SessionStatus.freeSession.name) {
+      count++;
+    }
+    final secs = s.durationSeconds ?? 0;
+    minutes += (secs / 60).round();
+    if (profile?.weightKg != null && secs > 0) {
+      kcal += calories.estimateFromSeconds(
+        durationSeconds: secs,
+        weightKg: profile!.weightKg!,
+        intensity: intensityFromDifficulty(s.perceivedDifficulty),
+      );
+    }
+  }
+  final records = await workoutRepo.recordsSince(start);
+  return (
+    sessions: count,
+    minutes: minutes,
+    kcal: kcal.round(),
+    newRecords: records.length,
+  );
+});
+
+/// Convertit une difficulté perçue (1-5) en intensité pour l'estimation
+/// calorique. Défaut : modéré.
+Intensity intensityFromDifficulty(int? difficulty) {
+  if (difficulty == null) return Intensity.moderate;
+  if (difficulty <= 2) return Intensity.light;
+  if (difficulty >= 4) return Intensity.intense;
+  return Intensity.moderate;
+}
 
 /// Charge musculaire des 7 derniers jours : par groupe, par muscle, et groupes
 /// sous-travaillés (§7, §12.5, §12.7).

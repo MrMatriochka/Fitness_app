@@ -235,6 +235,12 @@ class WorkoutRepository {
     return volume;
   }
 
+  Future<List<PersonalRecord>> recordsSince(DateTime start) {
+    return (_db.select(_db.personalRecords)
+          ..where((t) => t.date.isBiggerOrEqualValue(start)))
+        .get();
+  }
+
   Future<List<PersonalRecord>> recordsForExercise(int exerciseId) {
     return (_db.select(_db.personalRecords)
           ..where((t) => t.exerciseId.equals(exerciseId))

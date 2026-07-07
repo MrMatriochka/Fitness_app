@@ -29,6 +29,11 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     final planned = ref.watch(todayPlannedProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Séance du jour')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _saving ? null : _logFreeSession,
+        icon: const Icon(Icons.bolt),
+        label: const Text('Séance libre'),
+      ),
       body: planned.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur : $e')),
@@ -52,6 +57,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                     : const Icon(Icons.flag),
                 label: const Text('Terminer la séance'),
               ),
+              const SizedBox(height: 80),
             ],
           );
         },
@@ -250,6 +256,85 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     }
     ref.invalidate(todayTemplateProvider);
     ref.invalidate(todayPlannedProvider);
+  }
+
+  /// Enregistre une activité hors programme (§13.5). Génère un bonus + activité
+  /// (R-005), sans casser ni valider le programme du jour.
+  Future<void> _logFreeSession() async {
+    final result = await showDialog<({int minutes, int difficulty})>(
+      context: context,
+      builder: (context) {
+        var minutes = 20.0;
+        var difficulty = 3.0;
+        return StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('Séance libre'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Mobilité, gainage, activité hors programme… '
+                  'Ça compte comme un bonus 🎉',
+                ),
+                const SizedBox(height: 12),
+                Text('Durée : ${minutes.round()} min'),
+                Slider(
+                  value: minutes,
+                  min: 5,
+                  max: 90,
+                  divisions: 17,
+                  label: '${minutes.round()} min',
+                  onChanged: (v) => setLocal(() => minutes = v),
+                ),
+                Text('Intensité perçue : ${difficulty.round()} / 5'),
+                Slider(
+                  value: difficulty,
+                  min: 1,
+                  max: 5,
+                  divisions: 4,
+                  label: '${difficulty.round()}',
+                  onChanged: (v) => setLocal(() => difficulty = v),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(
+                  context,
+                  (minutes: minutes.round(), difficulty: difficulty.round()),
+                ),
+                child: const Text('Enregistrer'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (result == null) return;
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(workoutRepositoryProvider).saveSession(
+            date: DateTime.now(),
+            status: SessionStatus.freeSession,
+            durationSeconds: result.minutes * 60,
+            perceivedDifficulty: result.difficulty,
+            performed: const [],
+            sessionWasPlanned: false,
+          );
+      if (!mounted) return;
+      ref.invalidate(streakSummaryProvider);
+      ref.invalidate(weeklySummaryProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Séance libre enregistrée — bonus 🎉')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<int?> _askDifficulty() {

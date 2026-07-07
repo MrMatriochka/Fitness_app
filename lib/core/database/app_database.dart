@@ -47,9 +47,9 @@ class AppDatabase extends _$AppDatabase {
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
-          if (details.wasCreated) {
-            await seedDatabase(this);
-          }
+          // Seed idempotent : complète muscles, exercices, variantes et règles
+          // manquants (y compris pour les installations déjà créées).
+          await seedDatabase(this);
         },
       );
 }

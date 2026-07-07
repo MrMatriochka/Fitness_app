@@ -205,7 +205,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
             sessionWasPlanned: template != null,
           );
 
-      final coach = _buildCoachSuggestions(list);
+      final coach = await _buildCoachSuggestions(list);
 
       if (!mounted) return;
       _done.clear();
@@ -217,9 +217,12 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   }
 
   /// Passe chaque exercice réalisé au coach pour proposer l'objectif de la
-  /// prochaine séance (§12.3).
-  List<_CoachItem> _buildCoachSuggestions(List<PlannedExercise> list) {
+  /// prochaine séance (§12.3), en s'appuyant sur les règles (limites + variante)
+  /// définies en base (§10.4/§10.6).
+  Future<List<_CoachItem>> _buildCoachSuggestions(
+      List<PlannedExercise> list) async {
     final service = ref.read(progressionServiceProvider);
+    final repo = ref.read(exerciseRepositoryProvider);
     final result = <_CoachItem>[];
     for (var i = 0; i < list.length; i++) {
       final p = list[i];
@@ -238,10 +241,34 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         targetWeightKg: p.template.targetWeightKg,
         consecutiveFailures: done >= targetSets ? 0 : 1,
       );
+
+      final rule = await repo.progressionRuleFor(p.exercise.id);
+      final ruleData = rule == null
+          ? const ProgressionRuleData()
+          : ProgressionRuleData(
+              maxReps: rule.maxReps,
+              maxSeconds: rule.maxSeconds,
+              maxWeightKg: rule.maxWeightKg,
+              nextVariantExerciseId: rule.nextVariantExerciseId,
+            );
+
+      final suggestion = service.suggest(perf, rule: ruleData);
+
+      var message = suggestion.message;
+      if (suggestion.decision == ProgressionDecision.switchVariant &&
+          suggestion.nextVariantExerciseId != null) {
+        final variant = await repo.getById(suggestion.nextVariantExerciseId!);
+        if (variant != null) {
+          message =
+              'Limite atteinte : passe à « ${variant.name} » pour la prochaine fois.';
+        }
+      }
+
       result.add(_CoachItem(
         exercise: p.exercise.name,
         templateId: p.template.id,
-        suggestion: service.suggest(perf),
+        suggestion: suggestion,
+        message: message,
       ));
     }
     return result;
@@ -342,7 +369,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                         Text(c.exercise,
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold)),
-                        Text(c.suggestion.message),
+                        Text(c.message),
                       ],
                     ),
                   ),
@@ -415,11 +442,15 @@ class _CoachItem {
     required this.exercise,
     required this.templateId,
     required this.suggestion,
+    required this.message,
   });
 
   final String exercise;
   final int templateId;
   final ProgressionSuggestion suggestion;
+
+  /// Message final affiché (peut inclure le nom de la variante résolue).
+  final String message;
 }
 
 class _EmptySession extends StatelessWidget {

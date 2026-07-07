@@ -3,10 +3,10 @@ import 'package:drift/drift.dart';
 import '../constants/enums.dart';
 import 'app_database.dart';
 
-/// Données initiales injectées à la création de la base (§7 et §11).
-///
-/// On insère d'abord les muscles, puis un socle d'exercices de calisthénie /
-/// haltères avec leur cartographie musculaire pondérée (§7.1).
+/// Données initiales injectées à la création de la base (§7 et §11), enrichies
+/// avec les chaînes de variantes et les limites de progression (doc coach
+/// §10.4/§10.6/§11.4). Le seed est **idempotent** : il complète ce qui manque
+/// sans dupliquer, et peut donc tourner à chaque ouverture.
 
 const List<({String name, String group})> seedMuscles = [
   (name: 'Pectoraux', group: 'Push'),
@@ -25,7 +25,6 @@ const List<({String name, String group})> seedMuscles = [
   (name: 'Mollets', group: 'Legs'),
 ];
 
-/// Un exercice seed + sa cartographie musculaire (nom du muscle -> % , rôle).
 typedef SeedMuscleShare = ({String muscle, double percent, MuscleRole role});
 
 class SeedExercise {
@@ -46,6 +45,7 @@ class SeedExercise {
   final List<SeedMuscleShare> muscles;
 }
 
+/// Exercices de base (déjà présents en V1).
 const List<SeedExercise> seedExercises = [
   SeedExercise(
     name: 'Pompes classiques',
@@ -177,28 +177,212 @@ const List<SeedExercise> seedExercises = [
   ),
 ];
 
-/// Insère les données seed. Idempotent : ne fait rien si des muscles existent
-/// déjà.
-Future<void> seedDatabase(AppDatabase db) async {
-  final existing = await db.select(db.muscles).get();
-  if (existing.isNotEmpty) return;
+/// Exercices ajoutés pour les chaînes de variantes (doc coach §10.6).
+const List<SeedExercise> variantSeedExercises = [
+  SeedExercise(
+    name: 'Pompes inclinées',
+    category: 'Push',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Pectoraux', percent: 40, role: MuscleRole.primary),
+      (muscle: 'Triceps', percent: 30, role: MuscleRole.secondary),
+      (muscle: 'Épaules', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 10, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Pompes déclinées',
+    category: 'Push',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 3,
+    muscles: [
+      (muscle: 'Pectoraux', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Épaules', percent: 30, role: MuscleRole.secondary),
+      (muscle: 'Triceps', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 5, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Pompes diamant',
+    category: 'Push',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 3,
+    muscles: [
+      (muscle: 'Triceps', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Pectoraux', percent: 35, role: MuscleRole.secondary),
+      (muscle: 'Épaules', percent: 15, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 5, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Scapular pull-up',
+    category: 'Pull',
+    measurementType: MeasurementType.reps,
+    equipment: 'barre de traction',
+    difficulty: 2,
+    muscles: [
+      (muscle: 'Dos', percent: 50, role: MuscleRole.primary),
+      (muscle: 'Avant-bras', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Épaules arrière', percent: 25, role: MuscleRole.secondary),
+    ],
+  ),
+  SeedExercise(
+    name: 'Tractions négatives',
+    category: 'Pull',
+    measurementType: MeasurementType.reps,
+    equipment: 'barre de traction',
+    difficulty: 3,
+    muscles: [
+      (muscle: 'Dos', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Biceps', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Avant-bras', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 10, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Tractions tempo',
+    category: 'Pull',
+    measurementType: MeasurementType.reps,
+    equipment: 'barre de traction',
+    difficulty: 4,
+    muscles: [
+      (muscle: 'Dos', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Biceps', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Avant-bras', percent: 15, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 10, role: MuscleRole.stabilizer),
+      (muscle: 'Épaules arrière', percent: 5, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Tractions lestées',
+    category: 'Pull',
+    measurementType: MeasurementType.weightReps,
+    equipment: 'barre + lest',
+    difficulty: 5,
+    muscles: [
+      (muscle: 'Dos', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Biceps', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Avant-bras', percent: 15, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 10, role: MuscleRole.stabilizer),
+      (muscle: 'Épaules arrière', percent: 5, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Dead bug',
+    category: 'Core',
+    measurementType: MeasurementType.reps,
+    equipment: 'tapis',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Abdos', percent: 60, role: MuscleRole.primary),
+      (muscle: 'Obliques', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Lombaires', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Tuck L-sit',
+    category: 'Core',
+    measurementType: MeasurementType.time,
+    equipment: 'barres parallèles',
+    difficulty: 3,
+    muscles: [
+      (muscle: 'Abdos', percent: 60, role: MuscleRole.primary),
+      (muscle: 'Avant-bras', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Quadriceps', percent: 20, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'L-sit complet',
+    category: 'Core',
+    measurementType: MeasurementType.time,
+    equipment: 'barres parallèles',
+    difficulty: 5,
+    muscles: [
+      (muscle: 'Abdos', percent: 60, role: MuscleRole.primary),
+      (muscle: 'Quadriceps', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Avant-bras', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+];
 
-  await db.batch((batch) {
-    batch.insertAll(
-      db.muscles,
-      seedMuscles
-          .map((m) => MusclesCompanion.insert(
-                name: m.name,
-                group: Value(m.group),
-              ))
-          .toList(),
-    );
+/// Tous les exercices seed (base + variantes).
+List<SeedExercise> get allSeedExercises => [
+      ...seedExercises,
+      ...variantSeedExercises,
+    ];
+
+/// Chaînes de variantes : du plus facile au plus difficile (§10.6).
+const List<({String easier, String harder})> variantLinks = [
+  // Push
+  (easier: 'Pompes inclinées', harder: 'Pompes classiques'),
+  (easier: 'Pompes classiques', harder: 'Pompes déclinées'),
+  (easier: 'Pompes déclinées', harder: 'Pompes diamant'),
+  // Pull
+  (easier: 'Dead hang', harder: 'Scapular pull-up'),
+  (easier: 'Scapular pull-up', harder: 'Tractions négatives'),
+  (easier: 'Tractions négatives', harder: 'Tractions pronation'),
+  (easier: 'Tractions pronation', harder: 'Tractions tempo'),
+  (easier: 'Tractions tempo', harder: 'Tractions lestées'),
+  // Core
+  (easier: 'Dead bug', harder: 'Hollow hold'),
+  (easier: 'Hollow hold', harder: 'Tuck L-sit'),
+  (easier: 'Tuck L-sit', harder: 'L-sit complet'),
+];
+
+/// Limites utiles et variante suivante par exercice (§10.4, §12.1).
+class RuleSeed {
+  const RuleSeed({
+    required this.exercise,
+    this.maxReps,
+    this.maxSeconds,
+    this.nextVariant,
   });
 
+  final String exercise;
+  final int? maxReps;
+  final int? maxSeconds;
+  final String? nextVariant;
+}
+
+const List<RuleSeed> ruleSeeds = [
+  RuleSeed(exercise: 'Pompes classiques', maxReps: 20, nextVariant: 'Pompes déclinées'),
+  RuleSeed(exercise: 'Pompes déclinées', maxReps: 15, nextVariant: 'Pompes diamant'),
+  RuleSeed(exercise: 'Tractions pronation', maxReps: 10, nextVariant: 'Tractions tempo'),
+  RuleSeed(exercise: 'Tractions tempo', maxReps: 8, nextVariant: 'Tractions lestées'),
+  RuleSeed(exercise: 'Dips', maxReps: 15),
+  RuleSeed(exercise: 'Squats poids du corps', maxReps: 25),
+  RuleSeed(exercise: 'Gainage (planche)', maxSeconds: 90, nextVariant: 'Tuck L-sit'),
+  RuleSeed(exercise: 'Hollow hold', maxSeconds: 45, nextVariant: 'Tuck L-sit'),
+  RuleSeed(exercise: 'Tuck L-sit', maxSeconds: 30, nextVariant: 'L-sit complet'),
+];
+
+/// Injecte / complète les données seed. Idempotent : n'ajoute que ce qui manque.
+Future<void> seedDatabase(AppDatabase db) async {
+  // 1. Muscles
+  final existingMuscles = await db.select(db.muscles).get();
+  if (existingMuscles.isEmpty) {
+    await db.batch((batch) {
+      batch.insertAll(
+        db.muscles,
+        seedMuscles
+            .map((m) => MusclesCompanion.insert(name: m.name, group: Value(m.group)))
+            .toList(),
+      );
+    });
+  }
   final muscleRows = await db.select(db.muscles).get();
   final muscleIdByName = {for (final m in muscleRows) m.name: m.id};
 
-  for (final ex in seedExercises) {
+  // 2. Exercices (base + variantes), insérés seulement s'ils manquent.
+  final existingExercises = await db.select(db.exercises).get();
+  final exerciseIdByName = {for (final e in existingExercises) e.name: e.id};
+
+  for (final ex in allSeedExercises) {
+    if (exerciseIdByName.containsKey(ex.name)) continue;
     final exerciseId = await db.into(db.exercises).insert(
           ExercisesCompanion.insert(
             name: ex.name,
@@ -208,7 +392,7 @@ Future<void> seedDatabase(AppDatabase db) async {
             difficulty: Value(ex.difficulty),
           ),
         );
-
+    exerciseIdByName[ex.name] = exerciseId;
     await db.batch((batch) {
       batch.insertAll(
         db.exerciseMuscles,
@@ -223,5 +407,35 @@ Future<void> seedDatabase(AppDatabase db) async {
             .toList(),
       );
     });
+  }
+
+  // 3. Liens de variantes + règles de progression (une seule fois).
+  final anyRule =
+      await (db.select(db.progressionRules)..limit(1)).getSingleOrNull();
+  if (anyRule != null) return;
+
+  for (final link in variantLinks) {
+    final easierId = exerciseIdByName[link.easier];
+    final harderId = exerciseIdByName[link.harder];
+    if (easierId == null || harderId == null) continue;
+    await (db.update(db.exercises)..where((t) => t.id.equals(easierId)))
+        .write(ExercisesCompanion(harderVariantId: Value(harderId)));
+    await (db.update(db.exercises)..where((t) => t.id.equals(harderId)))
+        .write(ExercisesCompanion(easierVariantId: Value(easierId)));
+  }
+
+  for (final rule in ruleSeeds) {
+    final exerciseId = exerciseIdByName[rule.exercise];
+    if (exerciseId == null) continue;
+    final nextId =
+        rule.nextVariant != null ? exerciseIdByName[rule.nextVariant] : null;
+    await db.into(db.progressionRules).insert(
+          ProgressionRulesCompanion.insert(
+            exerciseId: exerciseId,
+            maxReps: Value(rule.maxReps),
+            maxSeconds: Value(rule.maxSeconds),
+            nextVariantExerciseId: Value(nextId),
+          ),
+        );
   }
 }

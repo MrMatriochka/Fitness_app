@@ -68,6 +68,28 @@ class ExerciseLibraryPage extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(exercise.description!),
                 ],
+                if (exercise.easierVariantId != null ||
+                    exercise.harderVariantId != null) ...[
+                  const SizedBox(height: 16),
+                  Text('Variantes',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  FutureBuilder<({String? easier, String? harder})>(
+                    future: _variantNames(ref, exercise),
+                    builder: (context, snap) {
+                      final v = snap.data;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (v?.easier != null)
+                            Text('⬇️ Plus facile : ${v!.easier}'),
+                          if (v?.harder != null)
+                            Text('⬆️ Plus dur : ${v!.harder}'),
+                        ],
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Text('Muscles sollicités',
                     style: Theme.of(context).textTheme.titleSmall),
@@ -104,6 +126,18 @@ class ExerciseLibraryPage extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<({String? easier, String? harder})> _variantNames(
+      WidgetRef ref, Exercise exercise) async {
+    final repo = ref.read(exerciseRepositoryProvider);
+    final easier = exercise.easierVariantId == null
+        ? null
+        : await repo.getById(exercise.easierVariantId!);
+    final harder = exercise.harderVariantId == null
+        ? null
+        : await repo.getById(exercise.harderVariantId!);
+    return (easier: easier?.name, harder: harder?.name);
   }
 
   Future<void> _createExercise(BuildContext context, WidgetRef ref) async {

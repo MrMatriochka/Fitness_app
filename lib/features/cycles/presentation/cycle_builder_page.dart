@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
 import '../../../core/database/app_database.dart';
+import 'program_library_page.dart';
 
 /// Création manuelle d'un cycle (§13.2, US-007/008/009) : nom, objectif, durée,
 /// jours d'entraînement et exercices par jour. La dernière semaine est un déload.
@@ -48,6 +49,19 @@ class _CycleBuilderPageState extends ConsumerState<CycleBuilderPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ProgramLibraryPage(),
+              ),
+            ),
+            icon: const Icon(Icons.auto_stories_outlined),
+            label: const Text('Partir d\'un programme préfait'),
+          ),
+          const Divider(height: 32),
+          Text('… ou crée le tien',
+              style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
           TextField(
             controller: _name,
             decoration: const InputDecoration(labelText: 'Nom du cycle'),

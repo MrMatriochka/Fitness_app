@@ -309,10 +309,231 @@ const List<SeedExercise> variantSeedExercises = [
   ),
 ];
 
-/// Tous les exercices seed (base + variantes).
+/// Exercices complémentaires (mouvements des programmes préfaits, doc §4–§8).
+const List<SeedExercise> extraSeedExercises = [
+  SeedExercise(
+    name: 'Pike push-up',
+    category: 'Push',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 3,
+    muscles: [
+      (muscle: 'Épaules', percent: 55, role: MuscleRole.primary),
+      (muscle: 'Triceps', percent: 30, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Élévations latérales haltères',
+    category: 'Push',
+    measurementType: MeasurementType.weightReps,
+    equipment: 'haltères',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Épaules', percent: 80, role: MuscleRole.primary),
+      (muscle: 'Triceps', percent: 10, role: MuscleRole.stabilizer),
+      (muscle: 'Abdos', percent: 10, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Extension triceps haltère',
+    category: 'Push',
+    measurementType: MeasurementType.weightReps,
+    equipment: 'haltères',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Triceps', percent: 85, role: MuscleRole.primary),
+      (muscle: 'Épaules', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Curl haltères',
+    category: 'Pull',
+    measurementType: MeasurementType.weightReps,
+    equipment: 'haltères',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Biceps', percent: 70, role: MuscleRole.primary),
+      (muscle: 'Avant-bras', percent: 30, role: MuscleRole.secondary),
+    ],
+  ),
+  SeedExercise(
+    name: 'Reverse fly haltères',
+    category: 'Pull',
+    measurementType: MeasurementType.weightReps,
+    equipment: 'haltères',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Épaules arrière', percent: 55, role: MuscleRole.primary),
+      (muscle: 'Dos', percent: 30, role: MuscleRole.secondary),
+      (muscle: 'Triceps', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Goblet squat',
+    category: 'Legs',
+    measurementType: MeasurementType.weightReps,
+    equipment: 'haltère',
+    difficulty: 2,
+    muscles: [
+      (muscle: 'Quadriceps', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Fessiers', percent: 30, role: MuscleRole.primary),
+      (muscle: 'Ischios', percent: 15, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 10, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Fentes arrière',
+    category: 'Legs',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 2,
+    muscles: [
+      (muscle: 'Quadriceps', percent: 40, role: MuscleRole.primary),
+      (muscle: 'Fessiers', percent: 35, role: MuscleRole.primary),
+      (muscle: 'Ischios', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Mollets', percent: 5, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Bulgarian split squat',
+    category: 'Legs',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 3,
+    muscles: [
+      (muscle: 'Quadriceps', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Fessiers', percent: 35, role: MuscleRole.primary),
+      (muscle: 'Ischios', percent: 15, role: MuscleRole.secondary),
+      (muscle: 'Mollets', percent: 5, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Hip thrust',
+    category: 'Legs',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 2,
+    muscles: [
+      (muscle: 'Fessiers', percent: 60, role: MuscleRole.primary),
+      (muscle: 'Ischios', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Quadriceps', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Soulevé de terre roumain haltères',
+    category: 'Legs',
+    measurementType: MeasurementType.weightReps,
+    equipment: 'haltères',
+    difficulty: 3,
+    muscles: [
+      (muscle: 'Ischios', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Fessiers', percent: 35, role: MuscleRole.primary),
+      (muscle: 'Lombaires', percent: 20, role: MuscleRole.secondary),
+    ],
+  ),
+  SeedExercise(
+    name: 'Mollets debout',
+    category: 'Legs',
+    measurementType: MeasurementType.reps,
+    equipment: 'aucun',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Mollets', percent: 100, role: MuscleRole.primary),
+    ],
+  ),
+  SeedExercise(
+    name: 'Wall sit',
+    category: 'Legs',
+    measurementType: MeasurementType.time,
+    equipment: 'aucun',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Quadriceps', percent: 70, role: MuscleRole.primary),
+      (muscle: 'Fessiers', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Mollets', percent: 10, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Relevés de genoux suspendu',
+    category: 'Core',
+    measurementType: MeasurementType.reps,
+    equipment: 'barre de traction',
+    difficulty: 2,
+    muscles: [
+      (muscle: 'Abdos', percent: 65, role: MuscleRole.primary),
+      (muscle: 'Avant-bras', percent: 20, role: MuscleRole.stabilizer),
+      (muscle: 'Obliques', percent: 15, role: MuscleRole.secondary),
+    ],
+  ),
+  SeedExercise(
+    name: 'Mountain climbers',
+    category: 'Core',
+    measurementType: MeasurementType.time,
+    equipment: 'aucun',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Abdos', percent: 45, role: MuscleRole.primary),
+      (muscle: 'Obliques', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Quadriceps', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Épaules', percent: 10, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Russian twist',
+    category: 'Core',
+    measurementType: MeasurementType.reps,
+    equipment: 'tapis',
+    difficulty: 1,
+    muscles: [
+      (muscle: 'Obliques', percent: 60, role: MuscleRole.primary),
+      (muscle: 'Abdos', percent: 30, role: MuscleRole.secondary),
+      (muscle: 'Lombaires', percent: 10, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Hollow rocks',
+    category: 'Core',
+    measurementType: MeasurementType.reps,
+    equipment: 'tapis',
+    difficulty: 2,
+    muscles: [
+      (muscle: 'Abdos', percent: 65, role: MuscleRole.primary),
+      (muscle: 'Obliques', percent: 20, role: MuscleRole.secondary),
+      (muscle: 'Quadriceps', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Gainage latéral',
+    category: 'Core',
+    measurementType: MeasurementType.time,
+    equipment: 'tapis',
+    difficulty: 2,
+    muscles: [
+      (muscle: 'Obliques', percent: 60, role: MuscleRole.primary),
+      (muscle: 'Abdos', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Épaules', percent: 15, role: MuscleRole.stabilizer),
+    ],
+  ),
+  SeedExercise(
+    name: 'Handstand wall hold',
+    category: 'Skill',
+    measurementType: MeasurementType.time,
+    equipment: 'mur',
+    difficulty: 4,
+    muscles: [
+      (muscle: 'Épaules', percent: 55, role: MuscleRole.primary),
+      (muscle: 'Triceps', percent: 25, role: MuscleRole.secondary),
+      (muscle: 'Abdos', percent: 20, role: MuscleRole.stabilizer),
+    ],
+  ),
+];
+
+/// Tous les exercices seed (base + variantes + complémentaires).
 List<SeedExercise> get allSeedExercises => [
       ...seedExercises,
       ...variantSeedExercises,
+      ...extraSeedExercises,
     ];
 
 /// Chaînes de variantes : du plus facile au plus difficile (§10.6).

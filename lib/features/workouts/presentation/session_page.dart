@@ -142,8 +142,9 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   }
 
   Future<void> _finish(List<PlannedExercise> list) async {
-    final difficulty = await _askDifficulty();
-    if (difficulty == null) return; // annulé
+    final score = await _askSessionScore();
+    if (score == null) return; // annulé
+    final difficulty = score.difficulty;
 
     setState(() => _saving = true);
     try {
@@ -201,16 +202,30 @@ class _SessionPageState extends ConsumerState<SessionPage> {
             status: status,
             durationSeconds: durationSeconds,
             perceivedDifficulty: difficulty,
+            energyLevel: score.energy,
+            painLevel: score.pain,
             performed: performed,
             sessionWasPlanned: template != null,
           );
 
       final coach = await _buildCoachSuggestions(list);
 
+      // Interprétation du ressenti (§10.2) : difficulté + douleur élevées =>
+      // déload conseillé.
+      String? deloadAdvice;
+      if (score.pain >= 3 && score.difficulty >= 4) {
+        deloadAdvice =
+            'Difficulté et douleur élevées — allège la prochaine séance ou programme un déload. '
+            'Ne force pas si la technique baisse.';
+      } else if (score.pain >= 4) {
+        deloadAdvice =
+            'Douleur élevée signalée — réduis le volume et privilégie mobilité et récupération.';
+      }
+
       if (!mounted) return;
       _done.clear();
       invalidateSessionData(ref);
-      await _showResult(status, kcal, durationSeconds, coach);
+      await _showResult(status, kcal, durationSeconds, coach, deloadAdvice);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -293,38 +308,63 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     ref.invalidate(todayPlannedProvider);
   }
 
-  Future<int?> _askDifficulty() {
-    var value = 3.0;
-    return showDialog<int>(
+  Future<({int difficulty, int energy, int pain})?> _askSessionScore() {
+    var difficulty = 3.0;
+    var energy = 3.0;
+    var pain = 0.0;
+    return showDialog<({int difficulty, int energy, int pain})>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: const Text('Ressenti de la séance'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Difficulté perçue : ${value.round()} / 5'),
-              Slider(
-                value: value,
-                min: 1,
-                max: 5,
-                divisions: 4,
-                label: '${value.round()}',
-                onChanged: (v) => setLocal(() => value = v),
+        builder: (context, setLocal) {
+          Widget slider(String label, double value, double min, double max,
+              String suffix, ValueChanged<double> onChanged) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$label : ${value.round()}$suffix'),
+                Slider(
+                  value: value,
+                  min: min,
+                  max: max,
+                  divisions: (max - min).round(),
+                  label: '${value.round()}',
+                  onChanged: onChanged,
+                ),
+              ],
+            );
+          }
+
+          return AlertDialog(
+            title: const Text('Ressenti de la séance'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  slider('Difficulté', difficulty, 1, 5, ' / 5',
+                      (v) => setLocal(() => difficulty = v)),
+                  slider('Énergie', energy, 1, 5, ' / 5',
+                      (v) => setLocal(() => energy = v)),
+                  slider('Douleur', pain, 0, 5, ' / 5',
+                      (v) => setLocal(() => pain = v)),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, (
+                  difficulty: difficulty.round(),
+                  energy: energy.round(),
+                  pain: pain.round(),
+                )),
+                child: const Text('Valider'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, value.round()),
-              child: const Text('Valider'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -334,6 +374,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     double? kcal,
     int durationSeconds,
     List<_CoachItem> coach,
+    String? deloadAdvice,
   ) {
     final minutes = (durationSeconds / 60).round();
     final canApply =
@@ -350,6 +391,24 @@ class _SessionPageState extends ConsumerState<SessionPage> {
               Text(_message(status)),
               const SizedBox(height: 12),
               Text('Durée : $minutes min'),
+              if (deloadAdvice != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('⚠️'),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(deloadAdvice)),
+                    ],
+                  ),
+                ),
+              ],
               if (kcal != null)
                 Text('Calories estimées : ~${kcal.round()} kcal')
               else

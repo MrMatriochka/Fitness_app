@@ -4,124 +4,111 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
 import '../../../core/database/app_database.dart';
+import 'personal_records_page.dart';
 
-class _ExerciseProgress {
-  const _ExerciseProgress(this.exercise, this.records);
-  final Exercise exercise;
-  final List<PersonalRecord> records;
-}
-
-final _progressProvider = FutureProvider<List<_ExerciseProgress>>((ref) async {
-  final exercises = await ref.watch(exerciseRepositoryProvider).getAll();
-  final repo = ref.watch(workoutRepositoryProvider);
-  final result = <_ExerciseProgress>[];
-  for (final e in exercises) {
-    final records = await repo.recordsForExercise(e.id);
-    if (records.isNotEmpty) {
-      result.add(_ExerciseProgress(e, records));
-    }
-  }
-  return result;
-});
-
-/// Onglet Progression (§8.6). En V1 : records personnels par exercice.
+/// Onglet Progression (§8.6) : bilan hebdo, charge musculaire, historique des
+/// séances, accès aux records.
 class ProgressionPage extends ConsumerWidget {
   const ProgressionPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(_progressProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Progression')),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(_progressProvider);
           ref.invalidate(weeklyMuscleLoadProvider);
           ref.invalidate(weeklySummaryProvider);
+          ref.invalidate(recentSessionsProvider);
         },
-        child: progress.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Erreur : $e')),
-          data: (list) => ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const _WeeklySummaryCard(),
-              const SizedBox(height: 8),
-              const _MuscleLoadCard(),
-              const SizedBox(height: 8),
-              Text('Records personnels',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              if (list.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Aucun record pour l\'instant.\n'
-                    'Termine une séance pour voir apparaître tes performances 📈',
-                    textAlign: TextAlign.center,
-                  ),
-                )
-              else
-                for (final p in list) _ProgressCard(p),
-            ],
-          ),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const _WeeklySummaryCard(),
+            const SizedBox(height: 8),
+            const _MuscleLoadCard(),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const PersonalRecordsPage(),
+                ),
+              ),
+              icon: const Icon(Icons.emoji_events_outlined),
+              label: const Text('Mes records personnels'),
+            ),
+            const SizedBox(height: 16),
+            Text('Historique des séances',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const _HistoryList(),
+          ],
         ),
       ),
     );
   }
 }
 
-class _ProgressCard extends StatelessWidget {
-  const _ProgressCard(this.progress);
-  final _ExerciseProgress progress;
+/// Liste des dernières séances réalisées.
+class _HistoryList extends ConsumerWidget {
+  const _HistoryList();
 
   @override
-  Widget build(BuildContext context) {
-    // Meilleure valeur par type de record.
-    final best = <RecordType, double>{};
-    for (final r in progress.records) {
-      final type = enumFromName(RecordType.values, r.recordType, RecordType.maxReps);
-      best.update(type, (v) => r.value > v ? r.value : v, ifAbsent: () => r.value);
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessions = ref.watch(recentSessionsProvider);
+    return sessions.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(8),
+        child: LinearProgressIndicator(),
+      ),
+      error: (e, _) => Text('Erreur : $e'),
+      data: (list) {
+        if (list.isEmpty) {
+          return const Text('Aucune séance enregistrée pour l\'instant.');
+        }
+        return Column(
+          children: [for (final s in list) _historyTile(context, s)],
+        );
+      },
+    );
+  }
+
+  Widget _historyTile(BuildContext context, WorkoutSession s) {
+    final status =
+        enumFromName(SessionStatus.values, s.status, SessionStatus.completed);
+    final minutes =
+        s.durationSeconds != null ? (s.durationSeconds! / 60).round() : null;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(progress.exercise.name,
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                for (final entry in best.entries)
-                  Chip(label: Text('${_label(entry.key)} : ${_fmt(entry.value)}')),
-              ],
-            ),
-          ],
-        ),
+      child: ListTile(
+        leading: Text(_statusEmoji(status), style: const TextStyle(fontSize: 22)),
+        title: Text(_dateLabel(s.date)),
+        subtitle: Text([
+          _statusLabel(status),
+          if (minutes != null) '$minutes min',
+        ].join(' · ')),
       ),
     );
   }
 
-  String _label(RecordType t) {
-    switch (t) {
-      case RecordType.maxReps:
-        return 'Reps max';
-      case RecordType.maxWeight:
-        return 'Charge max';
-      case RecordType.maxTime:
-        return 'Temps max';
-      case RecordType.maxVolume:
-        return 'Volume max';
-      case RecordType.bestSession:
-        return 'Meilleure séance';
-    }
-  }
+  String _dateLabel(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  String _fmt(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+  String _statusEmoji(SessionStatus s) => switch (s) {
+        SessionStatus.completed => '✅',
+        SessionStatus.partial => '🔸',
+        SessionStatus.freeSession => '⚡',
+        SessionStatus.missed => '❌',
+        _ => '•',
+      };
+
+  String _statusLabel(SessionStatus s) => switch (s) {
+        SessionStatus.completed => 'Complète',
+        SessionStatus.partial => 'Partielle',
+        SessionStatus.freeSession => 'Libre',
+        SessionStatus.missed => 'Manquée',
+        SessionStatus.planned => 'Prévue',
+        SessionStatus.inProgress => 'En cours',
+      };
 }
 
 /// Bilan de la semaine en cours (§13.6).

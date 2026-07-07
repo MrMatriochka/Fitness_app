@@ -72,6 +72,7 @@ class ProgressionSuggestion {
     this.newTargetSeconds,
     this.newTargetWeightKg,
     this.nextVariantExerciseId,
+    this.alternatives = const [],
   });
 
   final ProgressionDecision decision;
@@ -80,7 +81,20 @@ class ProgressionSuggestion {
   final int? newTargetSeconds;
   final double? newTargetWeightKg;
   final int? nextVariantExerciseId;
+
+  /// Autres pistes de progression proposées quand la limite est atteinte
+  /// (§10.6, retour utilisateur : plusieurs améliorations possibles).
+  final List<String> alternatives;
 }
+
+/// Pistes de progression proposées quand une limite utile est atteinte,
+/// en plus de la variante plus difficile (§2.1, §10.6).
+const List<String> limitAlternatives = [
+  'Ralentis le tempo (ex. 3 s à la descente)',
+  'Ajoute de la charge / du lest',
+  'Réduis le temps de repos entre les séries',
+  'Vise un objectif technique (amplitude, contrôle, explosivité)',
+];
 
 /// Coeur du « coach » : analyse la dernière performance et propose la
 /// progression suivante en respectant des limites réalistes (§3.2, §3.3, §12.3,
@@ -112,19 +126,12 @@ class ProgressionService {
 
     // Toutes les séries réussies : progresser, sauf si la limite est atteinte.
     if (_limitReached(perf, rule)) {
-      if (rule.nextVariantExerciseId != null) {
-        return ProgressionSuggestion(
-          decision: ProgressionDecision.switchVariant,
-          message:
-              'Limite raisonnable atteinte : passe à une variante plus difficile.',
-          nextVariantExerciseId: rule.nextVariantExerciseId,
-        );
-      }
-      return const ProgressionSuggestion(
+      return ProgressionSuggestion(
         decision: ProgressionDecision.switchVariant,
-        message:
-            'Limite atteinte : ajoute de la charge, ralentis le tempo ou choisis '
-            'une variante plus difficile plutôt que d\'empiler les répétitions.',
+        message: 'Limite raisonnable atteinte — plutôt que d\'empiler les reps, '
+            'tu peux :',
+        nextVariantExerciseId: rule.nextVariantExerciseId,
+        alternatives: limitAlternatives,
       );
     }
 

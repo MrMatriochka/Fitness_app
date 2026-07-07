@@ -254,21 +254,23 @@ class _SessionPageState extends ConsumerState<SessionPage> {
 
       final suggestion = service.suggest(perf, rule: ruleData);
 
-      var message = suggestion.message;
-      if (suggestion.decision == ProgressionDecision.switchVariant &&
-          suggestion.nextVariantExerciseId != null) {
-        final variant = await repo.getById(suggestion.nextVariantExerciseId!);
-        if (variant != null) {
-          message =
-              'Limite atteinte : passe à « ${variant.name} » pour la prochaine fois.';
+      final options = <String>[];
+      if (suggestion.decision == ProgressionDecision.switchVariant) {
+        if (suggestion.nextVariantExerciseId != null) {
+          final variant = await repo.getById(suggestion.nextVariantExerciseId!);
+          if (variant != null) {
+            options.add('Variante plus difficile : ${variant.name}');
+          }
         }
+        options.addAll(suggestion.alternatives);
       }
 
       result.add(_CoachItem(
         exercise: p.exercise.name,
         templateId: p.template.id,
         suggestion: suggestion,
-        message: message,
+        message: suggestion.message,
+        options: options,
       ));
     }
     return result;
@@ -370,6 +372,11 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold)),
                         Text(c.message),
+                        for (final o in c.options)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, top: 2),
+                            child: Text('• $o'),
+                          ),
                       ],
                     ),
                   ),
@@ -443,6 +450,7 @@ class _CoachItem {
     required this.templateId,
     required this.suggestion,
     required this.message,
+    this.options = const [],
   });
 
   final String exercise;
@@ -451,6 +459,9 @@ class _CoachItem {
 
   /// Message final affiché (peut inclure le nom de la variante résolue).
   final String message;
+
+  /// Options multiples proposées quand la limite est atteinte (§10.6).
+  final List<String> options;
 }
 
 class _EmptySession extends StatelessWidget {

@@ -43,13 +43,15 @@ void main() {
     expect(s.newTargetWeightKg, 22.5);
   });
 
-  test('limite de reps atteinte => propose une variante (R-010)', () {
+  test('limite de reps atteinte => propose une variante + alternatives (R-010)', () {
     final s = service.suggest(
       perf(reps: 15),
       rule: const ProgressionRuleData(maxReps: 15, nextVariantExerciseId: 42),
     );
     expect(s.decision, ProgressionDecision.switchVariant);
     expect(s.nextVariantExerciseId, 42);
+    // Retour utilisateur : plusieurs pistes proposées, pas une seule.
+    expect(s.alternatives, isNotEmpty);
   });
 
   test('échec léger (1 série ratée) => conserve l\'objectif', () {

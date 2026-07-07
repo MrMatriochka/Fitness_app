@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/enums.dart';
 import '../core/database/app_database.dart';
+import '../features/backup/data/data_backup_service.dart';
 import '../features/calories/domain/calories_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
 import '../features/debug/data/debug_repository.dart';
@@ -46,6 +47,9 @@ final workoutRepositoryProvider = Provider(
     ref.watch(databaseProvider),
     streakService: ref.watch(streakServiceProvider),
   ),
+);
+final dataBackupServiceProvider = Provider(
+  (ref) => DataBackupService(ref.watch(databaseProvider)),
 );
 
 /// Outils de debug (réservés au build debug, cf. `kDebugMode` côté UI).

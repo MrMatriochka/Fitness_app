@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
@@ -137,10 +138,109 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             icon: const Icon(Icons.menu_book_outlined),
             label: const Text('Bibliothèque d\'exercices'),
           ),
+          const SizedBox(height: 12),
+          _buildBackupSection(),
           if (kDebugMode) _buildDebugSection(),
         ],
       ),
     );
+  }
+
+  Widget _buildBackupSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.backup_outlined),
+                const SizedBox(width: 8),
+                Text('Sauvegarde',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Exporte tes données en JSON (fichier local + presse-papiers) '
+              'ou restaure la dernière sauvegarde.',
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _exportData,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Exporter'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _importData,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Restaurer'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportData() async {
+    final result = await ref.read(dataBackupServiceProvider).exportToFile();
+    await Clipboard.setData(ClipboardData(text: result.json));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Sauvegarde exportée (copiée). Fichier : ${result.path}'),
+      ),
+    );
+  }
+
+  Future<void> _importData() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restaurer la sauvegarde ?'),
+        content: const Text(
+          'Toutes les données actuelles seront remplacées par la dernière '
+          'sauvegarde locale.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restaurer'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await ref.read(dataBackupServiceProvider).importFromFile();
+      invalidateSessionData(ref);
+      ref.invalidate(todayTemplateProvider);
+      ref.invalidate(todayPlannedProvider);
+      ref.invalidate(exerciseListProvider);
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sauvegarde restaurée ✅')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Restauration impossible : $e')),
+      );
+    }
   }
 
   Widget _buildDebugSection() {

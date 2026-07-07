@@ -37,6 +37,7 @@ class ProgressionPage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(_progressProvider);
           ref.invalidate(weeklyMuscleLoadProvider);
+          ref.invalidate(weeklySummaryProvider);
         },
         child: progress.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -44,6 +45,8 @@ class ProgressionPage extends ConsumerWidget {
           data: (list) => ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              const _WeeklySummaryCard(),
+              const SizedBox(height: 8),
               const _MuscleLoadCard(),
               const SizedBox(height: 8),
               Text('Records personnels',
@@ -119,6 +122,52 @@ class _ProgressCard extends StatelessWidget {
   }
 
   String _fmt(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+}
+
+/// Bilan de la semaine en cours (§13.6).
+class _WeeklySummaryCard extends ConsumerWidget {
+  const _WeeklySummaryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(weeklySummaryProvider);
+    return Card(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Cette semaine',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            summary.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => Text('Erreur : $e'),
+              data: (s) => Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _stat(context, '${s.sessions}', 'séances'),
+                  _stat(context, '${s.minutes}', 'minutes'),
+                  _stat(context, '${s.kcal}', 'kcal'),
+                  _stat(context, '${s.newRecords}', 'records'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stat(BuildContext context, String value, String label) {
+    return Column(
+      children: [
+        Text(value, style: Theme.of(context).textTheme.headlineSmall),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
+  }
 }
 
 /// Carte musculaire des 7 derniers jours (§7) + recommandation d'équilibrage

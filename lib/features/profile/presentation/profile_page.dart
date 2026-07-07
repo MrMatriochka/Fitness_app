@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -125,8 +126,124 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
           const SizedBox(height: 8),
           if (_profileId != null) _MeasurementsList(profileId: _profileId!),
+          if (kDebugMode) _buildDebugSection(),
         ],
       ),
+    );
+  }
+
+  Widget _buildDebugSection() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Card(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bug_report_outlined),
+                  const SizedBox(width: 8),
+                  Text('Mode debug (tests)',
+                      style: Theme.of(context).textTheme.titleMedium),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Outils visibles uniquement en build de développement.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: _debugAddTodaySession,
+                    icon: const Icon(Icons.today),
+                    label: const Text('Séance aujourd\'hui'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: _debugSeedHistory,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('Historique de démo'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _debugReset,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Tout réinitialiser'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _debugAddTodaySession() async {
+    await ref.read(debugRepositoryProvider).ensureTodaySession();
+    ref.invalidate(todayTemplateProvider);
+    ref.invalidate(todayPlannedProvider);
+    if (!mounted) return;
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Séance du jour ajoutée — va dans l\'onglet Séance 💪')),
+    );
+  }
+
+  Future<void> _debugSeedHistory() async {
+    await ref.read(debugRepositoryProvider).seedDemoHistory();
+    invalidateSessionData(ref);
+    if (!mounted) return;
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Historique de démo généré (calendrier, flammes, progression)')),
+    );
+  }
+
+  Future<void> _debugReset() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tout réinitialiser ?'),
+        content: const Text(
+          'Efface profil, cycles, séances, flammes et records. '
+          'La bibliothèque d\'exercices est conservée.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Effacer'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    await ref.read(debugRepositoryProvider).resetUserData();
+    invalidateSessionData(ref);
+    ref.invalidate(todayTemplateProvider);
+    ref.invalidate(todayPlannedProvider);
+    if (!mounted) return;
+    setState(() {
+      _profileId = null;
+      _name.clear();
+      _weight.clear();
+      _height.clear();
+      _goal.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Données réinitialisées')),
     );
   }
 

@@ -58,6 +58,14 @@ class WorkoutRepository {
         .get();
   }
 
+  Future<List<StreakEvent>> streakEventsBetween(DateTime start, DateTime end) {
+    return (_db.select(_db.streakEvents)
+          ..where((t) =>
+              t.date.isBiggerOrEqualValue(start) &
+              t.date.isSmallerThanValue(end)))
+        .get();
+  }
+
   Future<List<StreakDay>> allStreakDays() async {
     final rows = await _db.select(_db.streakEvents).get();
     return rows
@@ -233,6 +241,12 @@ class WorkoutRepository {
       volume.update(exerciseId, (x) => x + v, ifAbsent: () => v.toDouble());
     }
     return volume;
+  }
+
+  Future<List<PersonalRecord>> recordsSince(DateTime start) {
+    return (_db.select(_db.personalRecords)
+          ..where((t) => t.date.isBiggerOrEqualValue(start)))
+        .get();
   }
 
   Future<List<PersonalRecord>> recordsForExercise(int exerciseId) {

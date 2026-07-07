@@ -5,7 +5,9 @@ import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
 import '../../../shared/widgets/countdown_timer.dart';
 import '../../cycles/data/cycle_repository.dart';
+import '../../progression/domain/progression_service.dart';
 import '../data/workout_repository.dart';
+import 'free_session_page.dart';
 
 /// Onglet Séance (§8.5) : liste des exercices du jour, timers de repos /
 /// d'exercice (§5), validation série par série, enregistrement de la
@@ -28,6 +30,17 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     final planned = ref.watch(todayPlannedProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Séance du jour')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _saving
+            ? null
+            : () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const FreeSessionPage(),
+                  ),
+                ),
+        icon: const Icon(Icons.bolt),
+        label: const Text('Séance libre'),
+      ),
       body: planned.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur : $e')),
@@ -51,6 +64,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                     : const Icon(Icons.flag),
                 label: const Text('Terminer la séance'),
               ),
+              const SizedBox(height: 80),
             ],
           );
         },
@@ -191,14 +205,63 @@ class _SessionPageState extends ConsumerState<SessionPage> {
             sessionWasPlanned: template != null,
           );
 
+      final coach = _buildCoachSuggestions(list);
+
       if (!mounted) return;
       _done.clear();
-      ref.invalidate(streakSummaryProvider);
-      ref.invalidate(weeklyMuscleLoadProvider);
-      await _showResult(status, kcal, durationSeconds);
+      invalidateSessionData(ref);
+      await _showResult(status, kcal, durationSeconds, coach);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Passe chaque exercice réalisé au coach pour proposer l'objectif de la
+  /// prochaine séance (§12.3).
+  List<_CoachItem> _buildCoachSuggestions(List<PlannedExercise> list) {
+    final service = ref.read(progressionServiceProvider);
+    final result = <_CoachItem>[];
+    for (var i = 0; i < list.length; i++) {
+      final p = list[i];
+      final targetSets = p.template.targetSets ?? 1;
+      var done = 0;
+      for (var s = 0; s < targetSets; s++) {
+        if (_done.contains('$i:$s')) done++;
+      }
+      final perf = LastPerformance(
+        measurementType: enumFromName(
+            MeasurementType.values, p.exercise.measurementType, MeasurementType.reps),
+        targetSets: targetSets,
+        completedSets: done,
+        targetReps: p.template.targetReps,
+        targetSeconds: p.template.targetSeconds,
+        targetWeightKg: p.template.targetWeightKg,
+        consecutiveFailures: done >= targetSets ? 0 : 1,
+      );
+      result.add(_CoachItem(
+        exercise: p.exercise.name,
+        templateId: p.template.id,
+        suggestion: service.suggest(perf),
+      ));
+    }
+    return result;
+  }
+
+  /// Applique au cycle les nouveaux objectifs proposés (§12.3, item « Appliquer »).
+  Future<void> _applyCoach(List<_CoachItem> coach) async {
+    final repo = ref.read(cycleRepositoryProvider);
+    for (final c in coach) {
+      final s = c.suggestion;
+      if (s.decision != ProgressionDecision.increase) continue;
+      await repo.updateExerciseTargets(
+        c.templateId,
+        targetReps: s.newTargetReps,
+        targetSeconds: s.newTargetSeconds,
+        targetWeightKg: s.newTargetWeightKg,
+      );
+    }
+    ref.invalidate(todayTemplateProvider);
+    ref.invalidate(todayPlannedProvider);
   }
 
   Future<int?> _askDifficulty() {
@@ -238,33 +301,80 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   }
 
   Future<void> _showResult(
-      SessionStatus status, double? kcal, int durationSeconds) {
+    SessionStatus status,
+    double? kcal,
+    int durationSeconds,
+    List<_CoachItem> coach,
+  ) {
     final minutes = (durationSeconds / 60).round();
+    final canApply =
+        coach.any((c) => c.suggestion.decision == ProgressionDecision.increase);
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(_title(status)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_message(status)),
-            const SizedBox(height: 12),
-            Text('Durée : $minutes min'),
-            if (kcal != null)
-              Text('Calories estimées : ~${kcal.round()} kcal')
-            else
-              const Text(
-                'Renseigne ton poids dans le profil pour estimer les calories.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_message(status)),
+              const SizedBox(height: 12),
+              Text('Durée : $minutes min'),
+              if (kcal != null)
+                Text('Calories estimées : ~${kcal.round()} kcal')
+              else
+                const Text(
+                  'Renseigne ton poids dans le profil pour estimer les calories.',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              if (coach.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('🧠 Coach — prochaine séance',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                for (final c in coach)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(c.exercise,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
+                        Text(c.suggestion.message),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
+          ),
         ),
         actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Plus tard'),
           ),
+          if (canApply)
+            FilledButton(
+              onPressed: () async {
+                await _applyCoach(coach);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Objectifs mis à jour pour la prochaine séance ✅'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Appliquer'),
+            )
+          else
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
         ],
       ),
     );
@@ -297,6 +407,19 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         return 'Aucune série validée. On se rattrape demain.';
     }
   }
+}
+
+/// Suggestion du coach pour un exercice, prête à être affichée et appliquée.
+class _CoachItem {
+  const _CoachItem({
+    required this.exercise,
+    required this.templateId,
+    required this.suggestion,
+  });
+
+  final String exercise;
+  final int templateId;
+  final ProgressionSuggestion suggestion;
 }
 
 class _EmptySession extends StatelessWidget {

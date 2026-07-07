@@ -39,6 +39,12 @@ class CycleRepository {
         .getSingleOrNull();
   }
 
+  Future<List<WorkoutTemplate>> templatesForCycle(int cycleId) {
+    return (_db.select(_db.workoutTemplates)
+          ..where((t) => t.cycleId.equals(cycleId)))
+        .get();
+  }
+
   Future<List<PlannedExercise>> exercisesForTemplate(int templateId) async {
     final query = _db.select(_db.workoutExerciseTemplates).join([
       innerJoin(
@@ -56,6 +62,30 @@ class CycleRepository {
               exercise: row.readTable(_db.exercises),
             ))
         .toList();
+  }
+
+  /// Met à jour les cibles d'un exercice prévu (suite à une suggestion du coach,
+  /// §12.3). Seules les valeurs non nulles fournies sont écrasées.
+  Future<void> updateExerciseTargets(
+    int workoutExerciseTemplateId, {
+    int? targetReps,
+    int? targetSeconds,
+    double? targetWeightKg,
+  }) async {
+    await (_db.update(_db.workoutExerciseTemplates)
+          ..where((t) => t.id.equals(workoutExerciseTemplateId)))
+        .write(
+      WorkoutExerciseTemplatesCompanion(
+        targetReps:
+            targetReps != null ? Value(targetReps) : const Value.absent(),
+        targetSeconds: targetSeconds != null
+            ? Value(targetSeconds)
+            : const Value.absent(),
+        targetWeightKg: targetWeightKg != null
+            ? Value(targetWeightKg)
+            : const Value.absent(),
+      ),
+    );
   }
 
   /// Crée un cycle "starter" Push / Pull / Legs sur [durationWeeks] semaines,

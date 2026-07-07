@@ -50,13 +50,38 @@ test/                    # tests unitaires des services métier
 
 ## Lancer le projet
 
-> Le code généré par Drift (`*.g.dart`) n'est pas versionné : il faut le
-> générer localement.
+> ⚠️ Les dossiers natifs (`android/`, `ios/`…) et le code généré par Drift
+> (`*.g.dart`) ne sont pas versionnés : on les régénère localement.
 
+### Prérequis
+- **Flutter SDK** (stable) — https://docs.flutter.dev/get-started/install
+- Pour iOS (macOS) : **Xcode** + **CocoaPods** (`brew install cocoapods`)
+- Pour Android : **Android Studio** (SDK + un émulateur)
+
+### Préparer puis lancer
 ```bash
-flutter pub get
-dart run build_runner build --delete-conflicting-outputs
-flutter run
+flutter create .                                          # recrée ios/android/…
+flutter pub get                                           # dépendances
+dart run build_runner build --delete-conflicting-outputs  # code Drift
+flutter run                                               # sur l'appareil/émulateur détecté
+```
+
+### macOS + IntelliJ IDEA (simulateur iPhone)
+1. Installer Xcode (App Store), puis :
+   `sudo xcodebuild -runFirstLaunch` et `brew install cocoapods`.
+2. Installer Flutter dans `~/development/flutter` et l'ajouter au `PATH` ;
+   vérifier avec `flutter doctor`.
+3. IntelliJ → **Settings → Plugins** → installer **Flutter** (+ Dart), redémarrer.
+4. **Settings → Languages & Frameworks → Flutter** → SDK path =
+   `~/development/flutter`.
+5. Ouvrir le projet, puis dans le terminal intégré : `flutter create .`,
+   `flutter pub get`, `dart run build_runner build --delete-conflicting-outputs`.
+6. Sélecteur d'appareil → **Open iOS Simulator** → bouton **▶ Run**.
+
+### Construire un APK Android (installation sur téléphone)
+```bash
+flutter build apk --release
+# → build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ## Tests & analyse

@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
 import '../../../shared/widgets/countdown_timer.dart';
 import '../../cycles/data/cycle_repository.dart';
+import '../../progression/domain/progression_service.dart';
 import '../data/workout_repository.dart';
 
 /// Onglet Séance (§8.5) : liste des exercices du jour, timers de repos /
@@ -191,14 +192,45 @@ class _SessionPageState extends ConsumerState<SessionPage> {
             sessionWasPlanned: template != null,
           );
 
+      final coach = _buildCoachSuggestions(list);
+
       if (!mounted) return;
       _done.clear();
       ref.invalidate(streakSummaryProvider);
       ref.invalidate(weeklyMuscleLoadProvider);
-      await _showResult(status, kcal, durationSeconds);
+      await _showResult(status, kcal, durationSeconds, coach);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Passe chaque exercice réalisé au coach pour proposer l'objectif de la
+  /// prochaine séance (§12.3).
+  List<({String exercise, String message})> _buildCoachSuggestions(
+      List<PlannedExercise> list) {
+    final service = ref.read(progressionServiceProvider);
+    final result = <({String exercise, String message})>[];
+    for (var i = 0; i < list.length; i++) {
+      final p = list[i];
+      final targetSets = p.template.targetSets ?? 1;
+      var done = 0;
+      for (var s = 0; s < targetSets; s++) {
+        if (_done.contains('$i:$s')) done++;
+      }
+      final perf = LastPerformance(
+        measurementType: enumFromName(
+            MeasurementType.values, p.exercise.measurementType, MeasurementType.reps),
+        targetSets: targetSets,
+        completedSets: done,
+        targetReps: p.template.targetReps,
+        targetSeconds: p.template.targetSeconds,
+        targetWeightKg: p.template.targetWeightKg,
+        consecutiveFailures: done >= targetSets ? 0 : 1,
+      );
+      final suggestion = service.suggest(perf);
+      result.add((exercise: p.exercise.name, message: suggestion.message));
+    }
+    return result;
   }
 
   Future<int?> _askDifficulty() {
@@ -238,27 +270,52 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   }
 
   Future<void> _showResult(
-      SessionStatus status, double? kcal, int durationSeconds) {
+    SessionStatus status,
+    double? kcal,
+    int durationSeconds,
+    List<({String exercise, String message})> coach,
+  ) {
     final minutes = (durationSeconds / 60).round();
     return showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(_title(status)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_message(status)),
-            const SizedBox(height: 12),
-            Text('Durée : $minutes min'),
-            if (kcal != null)
-              Text('Calories estimées : ~${kcal.round()} kcal')
-            else
-              const Text(
-                'Renseigne ton poids dans le profil pour estimer les calories.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_message(status)),
+              const SizedBox(height: 12),
+              Text('Durée : $minutes min'),
+              if (kcal != null)
+                Text('Calories estimées : ~${kcal.round()} kcal')
+              else
+                const Text(
+                  'Renseigne ton poids dans le profil pour estimer les calories.',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              if (coach.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('🧠 Coach — prochaine séance',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                for (final c in coach)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(c.exercise,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
+                        Text(c.message),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
+          ),
         ),
         actions: [
           FilledButton(

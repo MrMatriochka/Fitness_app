@@ -206,10 +206,9 @@ class _SessionPageState extends ConsumerState<SessionPage> {
 
   /// Passe chaque exercice réalisé au coach pour proposer l'objectif de la
   /// prochaine séance (§12.3).
-  List<({String exercise, String message})> _buildCoachSuggestions(
-      List<PlannedExercise> list) {
+  List<_CoachItem> _buildCoachSuggestions(List<PlannedExercise> list) {
     final service = ref.read(progressionServiceProvider);
-    final result = <({String exercise, String message})>[];
+    final result = <_CoachItem>[];
     for (var i = 0; i < list.length; i++) {
       final p = list[i];
       final targetSets = p.template.targetSets ?? 1;
@@ -227,10 +226,30 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         targetWeightKg: p.template.targetWeightKg,
         consecutiveFailures: done >= targetSets ? 0 : 1,
       );
-      final suggestion = service.suggest(perf);
-      result.add((exercise: p.exercise.name, message: suggestion.message));
+      result.add(_CoachItem(
+        exercise: p.exercise.name,
+        templateId: p.template.id,
+        suggestion: service.suggest(perf),
+      ));
     }
     return result;
+  }
+
+  /// Applique au cycle les nouveaux objectifs proposés (§12.3, item « Appliquer »).
+  Future<void> _applyCoach(List<_CoachItem> coach) async {
+    final repo = ref.read(cycleRepositoryProvider);
+    for (final c in coach) {
+      final s = c.suggestion;
+      if (s.decision != ProgressionDecision.increase) continue;
+      await repo.updateExerciseTargets(
+        c.templateId,
+        targetReps: s.newTargetReps,
+        targetSeconds: s.newTargetSeconds,
+        targetWeightKg: s.newTargetWeightKg,
+      );
+    }
+    ref.invalidate(todayTemplateProvider);
+    ref.invalidate(todayPlannedProvider);
   }
 
   Future<int?> _askDifficulty() {
@@ -273,12 +292,14 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     SessionStatus status,
     double? kcal,
     int durationSeconds,
-    List<({String exercise, String message})> coach,
+    List<_CoachItem> coach,
   ) {
     final minutes = (durationSeconds / 60).round();
+    final canApply =
+        coach.any((c) => c.suggestion.decision == ProgressionDecision.increase);
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(_title(status)),
         content: SingleChildScrollView(
           child: Column(
@@ -309,7 +330,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                         Text(c.exercise,
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold)),
-                        Text(c.message),
+                        Text(c.suggestion.message),
                       ],
                     ),
                   ),
@@ -318,10 +339,30 @@ class _SessionPageState extends ConsumerState<SessionPage> {
           ),
         ),
         actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Plus tard'),
           ),
+          if (canApply)
+            FilledButton(
+              onPressed: () async {
+                await _applyCoach(coach);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Objectifs mis à jour pour la prochaine séance ✅'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Appliquer'),
+            )
+          else
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
         ],
       ),
     );
@@ -354,6 +395,19 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         return 'Aucune série validée. On se rattrape demain.';
     }
   }
+}
+
+/// Suggestion du coach pour un exercice, prête à être affichée et appliquée.
+class _CoachItem {
+  const _CoachItem({
+    required this.exercise,
+    required this.templateId,
+    required this.suggestion,
+  });
+
+  final String exercise;
+  final int templateId;
+  final ProgressionSuggestion suggestion;
 }
 
 class _EmptySession extends StatelessWidget {

@@ -58,6 +58,30 @@ class CycleRepository {
         .toList();
   }
 
+  /// Met à jour les cibles d'un exercice prévu (suite à une suggestion du coach,
+  /// §12.3). Seules les valeurs non nulles fournies sont écrasées.
+  Future<void> updateExerciseTargets(
+    int workoutExerciseTemplateId, {
+    int? targetReps,
+    int? targetSeconds,
+    double? targetWeightKg,
+  }) async {
+    await (_db.update(_db.workoutExerciseTemplates)
+          ..where((t) => t.id.equals(workoutExerciseTemplateId)))
+        .write(
+      WorkoutExerciseTemplatesCompanion(
+        targetReps:
+            targetReps != null ? Value(targetReps) : const Value.absent(),
+        targetSeconds: targetSeconds != null
+            ? Value(targetSeconds)
+            : const Value.absent(),
+        targetWeightKg: targetWeightKg != null
+            ? Value(targetWeightKg)
+            : const Value.absent(),
+      ),
+    );
+  }
+
   /// Crée un cycle "starter" Push / Pull / Legs sur [durationWeeks] semaines,
   /// avec une dernière semaine en déload (§3.1, §12.1). Utilisé pour amorcer la
   /// première boucle. Renvoie l'id du cycle créé.

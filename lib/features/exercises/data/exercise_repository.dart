@@ -45,6 +45,18 @@ class ExerciseRepository {
         .getSingleOrNull();
   }
 
+  /// Alternatives possibles à un exercice : même catégorie (mouvement proche),
+  /// en excluant l'exercice lui-même, triées par difficulté (§10.9).
+  Future<List<Exercise>> alternativesFor(Exercise exercise) async {
+    if (exercise.category == null) return [];
+    final rows = await (_db.select(_db.exercises)
+          ..where((t) =>
+              t.category.equals(exercise.category!) & t.id.equals(exercise.id).not())
+          ..orderBy([(t) => OrderingTerm(expression: t.difficulty)]))
+        .get();
+    return rows;
+  }
+
   Future<int> createCustom({
     required String name,
     required MeasurementType measurementType,

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../cycles/data/cycle_repository.dart';
 import '../../cycles/presentation/cycle_builder_page.dart';
+import '../../muscles/domain/recovery_service.dart';
+import '../../progression/domain/readiness_service.dart';
 
 /// Onglet Accueil (§8.3) : séance du jour, flammes, création du cycle starter.
 class HomePage extends ConsumerWidget {
@@ -67,6 +69,10 @@ class HomePage extends ConsumerWidget {
               loading: () => const _LoadingCard(),
               error: (e, _) => _ErrorCard('$e'),
             ),
+            const SizedBox(height: 12),
+            const _RecoveryCard(),
+            const SizedBox(height: 12),
+            const _ReadinessCard(),
           ],
         ),
       ),
@@ -328,6 +334,188 @@ class _InfoCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _RecoveryCard extends ConsumerWidget {
+  const _RecoveryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rec = ref.watch(recoveryProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Récupération',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            rec.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => Text('Erreur : $e'),
+              data: (data) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final e in data.statuses.entries)
+                        _statusChip(context, e.key, e.value),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(data.recommendation),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusChip(BuildContext context, String group, RecoveryStatus status) {
+    final scheme = Theme.of(context).colorScheme;
+    final (String label, Color bg) = switch (status) {
+      RecoveryStatus.fresh => ('frais', scheme.secondaryContainer),
+      RecoveryStatus.worked => ('sollicité', scheme.tertiaryContainer),
+      RecoveryStatus.fatigued => ('fatigué', scheme.errorContainer),
+    };
+    return Chip(
+      label: Text('$group : $label'),
+      backgroundColor: bg,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _ReadinessCard extends ConsumerWidget {
+  const _ReadinessCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Forme du jour',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  const Text('Évalue ton readiness avant de t\'entraîner.'),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () => _showReadiness(context, ref),
+              child: const Text('Évaluer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReadiness(BuildContext context, WidgetRef ref) async {
+    final input = await showDialog<ReadinessInput>(
+      context: context,
+      builder: (context) {
+        var sleep = 3.0, energy = 3.0, motivation = 3.0, soreness = 0.0, pain = 0.0;
+        Widget slider(String label, double value, double min, double max,
+            ValueChanged<double> onChanged) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$label : ${value.round()}'),
+              Slider(
+                value: value,
+                min: min,
+                max: max,
+                divisions: (max - min).round(),
+                label: '${value.round()}',
+                onChanged: onChanged,
+              ),
+            ],
+          );
+        }
+
+        return StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('Comment tu te sens ?'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  slider('Sommeil', sleep, 1, 5, (v) => setLocal(() => sleep = v)),
+                  slider('Énergie', energy, 1, 5, (v) => setLocal(() => energy = v)),
+                  slider('Motivation', motivation, 1, 5,
+                      (v) => setLocal(() => motivation = v)),
+                  slider('Courbatures', soreness, 0, 5,
+                      (v) => setLocal(() => soreness = v)),
+                  slider('Douleur', pain, 0, 5, (v) => setLocal(() => pain = v)),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(
+                  context,
+                  ReadinessInput(
+                    sleep: sleep.round(),
+                    energy: energy.round(),
+                    motivation: motivation.round(),
+                    soreness: soreness.round(),
+                    pain: pain.round(),
+                  ),
+                ),
+                child: const Text('Évaluer'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (input == null || !context.mounted) return;
+
+    final assessment = ref.read(readinessServiceProvider).assess(input);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_levelLabel(assessment.level)),
+        content: Text(assessment.message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _levelLabel(ReadinessLevel level) {
+    switch (level) {
+      case ReadinessLevel.pushHard:
+        return 'Prêt à pousser 💪';
+      case ReadinessLevel.normal:
+        return 'Séance normale';
+      case ReadinessLevel.lighter:
+        return 'Séance allégée';
+      case ReadinessLevel.rest:
+        return 'Repos conseillé';
+    }
   }
 }
 

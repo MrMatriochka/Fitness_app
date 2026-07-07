@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
+import '../../../core/database/app_database.dart';
 import '../../../shared/widgets/countdown_timer.dart';
 import '../../cycles/data/cycle_repository.dart';
 import '../../progression/domain/progression_service.dart';
@@ -111,7 +112,8 @@ class _SessionPageState extends ConsumerState<SessionPage> {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 4,
               children: [
                 if (isTime)
                   TextButton.icon(
@@ -133,8 +135,53 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                     icon: const Icon(Icons.hourglass_bottom),
                     label: Text('Repos ${rest}s'),
                   ),
+                TextButton.icon(
+                  onPressed: () => _showAlternatives(p.exercise),
+                  icon: const Icon(Icons.swap_horiz),
+                  label: const Text('Alternative'),
+                ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Propose des alternatives à un exercice (matériel manquant, douleur, §10.9).
+  Future<void> _showAlternatives(Exercise exercise) async {
+    final alts =
+        await ref.read(exerciseRepositoryProvider).alternativesFor(exercise);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Alternatives à « ${exercise.name} »',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            const Text(
+                'Si le mouvement n\'est pas possible (matériel, douleur), essaie :'),
+            const SizedBox(height: 8),
+            if (alts.isEmpty)
+              const Text('Aucune alternative dans cette catégorie.')
+            else
+              for (final a in alts)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.fitness_center),
+                  title: Text(a.name),
+                  subtitle: Text([
+                    if (a.equipment != null) a.equipment!,
+                    if (a.difficulty != null) 'difficulté ${a.difficulty}',
+                  ].join(' · ')),
+                ),
           ],
         ),
       ),

@@ -2,13 +2,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/enums.dart';
 import '../core/database/app_database.dart';
+import '../features/backup/data/data_backup_service.dart';
 import '../features/calories/domain/calories_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
 import '../features/debug/data/debug_repository.dart';
 import '../features/exercises/data/exercise_repository.dart';
 import '../features/muscles/domain/muscle_load_service.dart';
+import '../features/muscles/domain/recovery_service.dart';
 import '../features/profile/data/profile_repository.dart';
 import '../features/progression/domain/progression_service.dart';
+import '../features/progression/domain/readiness_service.dart';
 import '../features/streaks/domain/streak_service.dart';
 import '../features/workouts/data/workout_repository.dart';
 
@@ -26,6 +29,8 @@ final streakServiceProvider = Provider((ref) => const StreakService());
 final caloriesServiceProvider = Provider((ref) => const CaloriesService());
 final muscleLoadServiceProvider = Provider((ref) => const MuscleLoadService());
 final progressionServiceProvider = Provider((ref) => const ProgressionService());
+final readinessServiceProvider = Provider((ref) => const ReadinessService());
+final recoveryServiceProvider = Provider((ref) => const RecoveryService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(
@@ -42,6 +47,9 @@ final workoutRepositoryProvider = Provider(
     ref.watch(databaseProvider),
     streakService: ref.watch(streakServiceProvider),
   ),
+);
+final dataBackupServiceProvider = Provider(
+  (ref) => DataBackupService(ref.watch(databaseProvider)),
 );
 
 /// Outils de debug (réservés au build debug, cf. `kDebugMode` côté UI).
@@ -135,6 +143,7 @@ void invalidateSessionData(WidgetRef ref) {
   ref.invalidate(weeklySummaryProvider);
   ref.invalidate(weeklyMuscleLoadProvider);
   ref.invalidate(calendarMonthProvider);
+  ref.invalidate(recoveryProvider);
 }
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,
@@ -223,4 +232,39 @@ final weeklyMuscleLoadProvider = FutureProvider<
     byMuscle: service.loadByMuscle(performed),
     underworked: service.underworkedGroups(performed),
   );
+});
+
+/// Statut de récupération par groupe (charge des 3 derniers jours) + reco de
+/// séance (§10.8, §12.4).
+final recoveryProvider = FutureProvider<
+    ({Map<String, RecoveryStatus> statuses, String recommendation})>((ref) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final exerciseRepo = ref.watch(exerciseRepositoryProvider);
+  final muscleService = ref.watch(muscleLoadServiceProvider);
+  final recovery = ref.watch(recoveryServiceProvider);
+
+  final since = DateTime.now().subtract(const Duration(days: 3));
+  final volumeByExercise = await workoutRepo.volumeByExerciseSince(since);
+
+  final performed = <PerformedForLoad>[];
+  for (final entry in volumeByExercise.entries) {
+    final shares = await exerciseRepo.musclesForExercise(entry.key);
+    performed.add(PerformedForLoad(
+      volume: entry.value,
+      shares: shares
+          .map((s) => MuscleShare(
+                muscleName: s.muscleName,
+                group: s.group,
+                contributionPercent: s.contributionPercent,
+              ))
+          .toList(),
+    ));
+  }
+
+  final byGroup = muscleService.loadByGroup(performed);
+  final statuses = recovery.assess(
+    byGroup,
+    allGroups: const ['Push', 'Pull', 'Legs', 'Core'],
+  );
+  return (statuses: statuses, recommendation: recovery.recommendation(statuses));
 });

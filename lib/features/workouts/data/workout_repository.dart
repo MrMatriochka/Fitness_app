@@ -36,7 +36,8 @@ class PerformedInput {
 
 /// Enregistrement et lecture des séances réalisées (§11.10 → §11.13, §12.2).
 class WorkoutRepository {
-  WorkoutRepository(this._db, {StreakService streakService = const StreakService()})
+  WorkoutRepository(this._db,
+      {StreakService streakService = const StreakService()})
       : _streaks = streakService;
 
   final AppDatabase _db;
@@ -46,14 +47,18 @@ class WorkoutRepository {
     final start = DateTime(date.year, date.month, date.day);
     final end = start.add(const Duration(days: 1));
     return (_db.select(_db.workoutSessions)
-          ..where((t) => t.date.isBiggerOrEqualValue(start) & t.date.isSmallerThanValue(end))
+          ..where((t) =>
+              t.date.isBiggerOrEqualValue(start) &
+              t.date.isSmallerThanValue(end))
           ..limit(1))
         .getSingleOrNull();
   }
 
   Future<List<WorkoutSession>> sessionsBetween(DateTime start, DateTime end) {
     return (_db.select(_db.workoutSessions)
-          ..where((t) => t.date.isBiggerOrEqualValue(start) & t.date.isSmallerThanValue(end))
+          ..where((t) =>
+              t.date.isBiggerOrEqualValue(start) &
+              t.date.isSmallerThanValue(end))
           ..orderBy([(t) => OrderingTerm(expression: t.date)]))
         .get();
   }
@@ -93,12 +98,23 @@ class WorkoutRepository {
     required bool sessionWasPlanned,
   }) async {
     return _db.transaction(() async {
+      if (templateId != null) {
+        await _replaceExistingPlannedSession(templateId, date);
+      }
+      final hasCompletedInput = performed.any(
+        (pe) => pe.sets.any((s) => s.completed),
+      );
+      final effectiveStatus =
+          status == SessionStatus.freeSession && !hasCompletedInput
+              ? SessionStatus.missed
+              : status;
+
       final sessionId = await _db.into(_db.workoutSessions).insert(
             WorkoutSessionsCompanion.insert(
               workoutTemplateId: Value(templateId),
               cycleId: Value(cycleId),
               date: date,
-              status: status.name,
+              status: effectiveStatus.name,
               startedAt: Value(date),
               endedAt: Value(DateTime.now()),
               durationSeconds: Value(durationSeconds),
@@ -135,7 +151,7 @@ class WorkoutRepository {
 
       await _writeStreakEvents(
         date: date,
-        status: status,
+        status: effectiveStatus,
         sessionWasPlanned: sessionWasPlanned,
         sessionId: sessionId,
       );
@@ -150,12 +166,13 @@ class WorkoutRepository {
     required bool sessionWasPlanned,
     required int sessionId,
   }) async {
+    final hasCompletedWork = await _sessionHasCompletedWork(sessionId);
     final ctx = DayContext(
       sessionWasPlanned: sessionWasPlanned,
       restWasPlanned: false,
       sessionCompleted: status == SessionStatus.completed,
       sessionPartial: status == SessionStatus.partial,
-      hadFreeActivity: !sessionWasPlanned,
+      hadFreeActivity: !sessionWasPlanned && hasCompletedWork,
     );
     for (final type in _streaks.classifyDay(ctx)) {
       await _db.into(_db.streakEvents).insert(
@@ -169,6 +186,70 @@ class WorkoutRepository {
     }
   }
 
+  Future<void> _replaceExistingPlannedSession(
+      int templateId, DateTime date) async {
+    final start = DateTime(date.year, date.month, date.day);
+    final end = start.add(const Duration(days: 1));
+    final existing = await (_db.select(_db.workoutSessions)
+          ..where((t) =>
+              t.workoutTemplateId.equals(templateId) &
+              t.date.isBiggerOrEqualValue(start) &
+              t.date.isSmallerThanValue(end)))
+        .get();
+
+    for (final session in existing) {
+      await (_db.delete(_db.streakEvents)
+            ..where((t) => t.workoutSessionId.equals(session.id)))
+          .go();
+      await (_db.delete(_db.personalRecords)
+            ..where((t) => t.workoutSessionId.equals(session.id)))
+          .go();
+      await (_db.delete(_db.workoutSessions)
+            ..where((t) => t.id.equals(session.id)))
+          .go();
+    }
+  }
+
+  Future<bool> _sessionHasCompletedWork(int sessionId) async {
+    final pes = await (_db.select(_db.performedExercises)
+          ..where((t) => t.workoutSessionId.equals(sessionId)))
+        .get();
+    if (pes.isEmpty) return false;
+    final peIds = pes.map((e) => e.id).toList();
+    final completedSet = await (_db.select(_db.performedSets)
+          ..where((t) =>
+              t.performedExerciseId.isIn(peIds) & t.completed.equals(true))
+          ..limit(1))
+        .getSingleOrNull();
+    return completedSet != null;
+  }
+
+  Future<int> consecutiveFailuresForExercise(int exerciseId) async {
+    final query = _db.select(_db.performedExercises).join([
+      innerJoin(
+        _db.workoutSessions,
+        _db.workoutSessions.id
+            .equalsExp(_db.performedExercises.workoutSessionId),
+      ),
+    ])
+      ..where(_db.performedExercises.exerciseId.equals(exerciseId))
+      ..orderBy([OrderingTerm.desc(_db.workoutSessions.date)]);
+
+    final rows = await query.get();
+    var failures = 0;
+    for (final row in rows) {
+      final pe = row.readTable(_db.performedExercises);
+      final sets = await (_db.select(_db.performedSets)
+            ..where((t) => t.performedExerciseId.equals(pe.id)))
+          .get();
+      if (sets.isEmpty) continue;
+      final failed = sets.any((s) => !s.completed);
+      if (!failed) break;
+      failures++;
+    }
+    return failures;
+  }
+
   Future<void> _updateRecords(
       PerformedInput pe, int sessionId, DateTime date) async {
     int bestReps = 0;
@@ -178,8 +259,10 @@ class WorkoutRepository {
     for (final s in pe.sets) {
       if (!s.completed) continue;
       bestReps = (s.reps ?? 0) > bestReps ? (s.reps ?? 0) : bestReps;
-      bestSeconds = (s.seconds ?? 0) > bestSeconds ? (s.seconds ?? 0) : bestSeconds;
-      bestWeight = (s.weightKg ?? 0) > bestWeight ? (s.weightKg ?? 0) : bestWeight;
+      bestSeconds =
+          (s.seconds ?? 0) > bestSeconds ? (s.seconds ?? 0) : bestSeconds;
+      bestWeight =
+          (s.weightKg ?? 0) > bestWeight ? (s.weightKg ?? 0) : bestWeight;
       volume += (s.reps ?? 0) * ((s.weightKg ?? 0) > 0 ? s.weightKg! : 1);
     }
 

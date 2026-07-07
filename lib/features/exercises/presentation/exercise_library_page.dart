@@ -52,10 +52,13 @@ class ExerciseLibraryPage extends ConsumerWidget {
       context: context,
       showDragHandle: true,
       builder: (context) => FutureBuilder<List<ExerciseMuscleShare>>(
-        future: ref.read(exerciseRepositoryProvider).musclesForExercise(exercise.id),
+        future: ref
+            .read(exerciseRepositoryProvider)
+            .musclesForExercise(exercise.id),
         builder: (context, snapshot) {
           final shares = (snapshot.data ?? [])
-            ..sort((a, b) => b.contributionPercent.compareTo(a.contributionPercent));
+            ..sort((a, b) =>
+                b.contributionPercent.compareTo(a.contributionPercent));
           return Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
             child: Column(
@@ -212,7 +215,7 @@ class _CreateExerciseDialogState extends ConsumerState<_CreateExerciseDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<MeasurementType>(
-              value: _type,
+              initialValue: _type,
               decoration: const InputDecoration(labelText: 'Type de mesure'),
               items: const [
                 DropdownMenuItem(
@@ -226,7 +229,8 @@ class _CreateExerciseDialogState extends ConsumerState<_CreateExerciseDialog> {
                     value: MeasurementType.timeWeight,
                     child: Text('Temps + charge')),
               ],
-              onChanged: (v) => setState(() => _type = v ?? MeasurementType.reps),
+              onChanged: (v) =>
+                  setState(() => _type = v ?? MeasurementType.reps),
             ),
           ],
         ),
@@ -250,7 +254,8 @@ class _CreateExerciseDialogState extends ConsumerState<_CreateExerciseDialog> {
     await ref.read(exerciseRepositoryProvider).createCustom(
           name: _name.text.trim(),
           measurementType: _type,
-          category: _category.text.trim().isEmpty ? null : _category.text.trim(),
+          category:
+              _category.text.trim().isEmpty ? null : _category.text.trim(),
           equipment:
               _equipment.text.trim().isEmpty ? null : _equipment.text.trim(),
         );

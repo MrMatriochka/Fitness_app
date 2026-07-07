@@ -28,7 +28,8 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 final streakServiceProvider = Provider((ref) => const StreakService());
 final caloriesServiceProvider = Provider((ref) => const CaloriesService());
 final muscleLoadServiceProvider = Provider((ref) => const MuscleLoadService());
-final progressionServiceProvider = Provider((ref) => const ProgressionService());
+final progressionServiceProvider =
+    Provider((ref) => const ProgressionService());
 final readinessServiceProvider = Provider((ref) => const ReadinessService());
 final recoveryServiceProvider = Provider((ref) => const RecoveryService());
 
@@ -80,7 +81,9 @@ final todayTemplateProvider = FutureProvider((ref) async {
   final cycle = await ref.watch(activeCycleProvider.future);
   if (cycle == null) return null;
   final weekday = DateTime.now().weekday;
-  return ref.watch(cycleRepositoryProvider).templateForWeekday(cycle.id, weekday);
+  return ref
+      .watch(cycleRepositoryProvider)
+      .templateForWeekday(cycle.id, weekday);
 });
 
 /// Exercices prévus dans la séance du jour.
@@ -149,8 +152,9 @@ void invalidateSessionData(WidgetRef ref) {
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,
 /// nouveaux records.
-final weeklySummaryProvider = FutureProvider<
-    ({int sessions, int minutes, int kcal, int newRecords})>((ref) async {
+final weeklySummaryProvider =
+    FutureProvider<({int sessions, int minutes, int kcal, int newRecords})>(
+        (ref) async {
   final workoutRepo = ref.watch(workoutRepositoryProvider);
   final calories = ref.watch(caloriesServiceProvider);
   final profile = await ref.watch(profileRepositoryProvider).getProfile();
@@ -158,26 +162,27 @@ final weeklySummaryProvider = FutureProvider<
   final now = DateTime.now();
   final start = DateTime(now.year, now.month, now.day)
       .subtract(Duration(days: now.weekday - 1));
-  final sessions =
-      await workoutRepo.sessionsBetween(start, now.add(const Duration(days: 1)));
+  final sessions = await workoutRepo.sessionsBetween(
+      start, now.add(const Duration(days: 1)));
 
   var count = 0;
   var minutes = 0;
   var kcal = 0.0;
   for (final s in sessions) {
-    if (s.status == SessionStatus.completed.name ||
+    final countsAsTraining = s.status == SessionStatus.completed.name ||
         s.status == SessionStatus.partial.name ||
-        s.status == SessionStatus.freeSession.name) {
+        s.status == SessionStatus.freeSession.name;
+    if (countsAsTraining) {
       count++;
-    }
-    final secs = s.durationSeconds ?? 0;
-    minutes += (secs / 60).round();
-    if (profile?.weightKg != null && secs > 0) {
-      kcal += calories.estimateFromSeconds(
-        durationSeconds: secs,
-        weightKg: profile!.weightKg!,
-        intensity: intensityFromDifficulty(s.perceivedDifficulty),
-      );
+      final secs = s.durationSeconds ?? 0;
+      minutes += (secs / 60).round();
+      if (profile?.weightKg != null && secs > 0) {
+        kcal += calories.estimateFromSeconds(
+          durationSeconds: secs,
+          weightKg: profile!.weightKg!,
+          intensity: intensityFromDifficulty(s.perceivedDifficulty),
+        );
+      }
     }
   }
   final records = await workoutRepo.recordsSince(start);
@@ -199,8 +204,8 @@ Intensity intensityFromDifficulty(int? difficulty) {
 }
 
 /// Historique des dernières séances réalisées (onglet Progression).
-final recentSessionsProvider =
-    FutureProvider((ref) => ref.watch(workoutRepositoryProvider).recentSessions());
+final recentSessionsProvider = FutureProvider(
+    (ref) => ref.watch(workoutRepositoryProvider).recentSessions());
 
 /// Charge musculaire des 7 derniers jours : par groupe, par muscle, et groupes
 /// sous-travaillés (§7, §12.5, §12.7).
@@ -242,7 +247,10 @@ final weeklyMuscleLoadProvider = FutureProvider<
 /// Statut de récupération par groupe (charge des 3 derniers jours) + reco de
 /// séance (§10.8, §12.4).
 final recoveryProvider = FutureProvider<
-    ({Map<String, RecoveryStatus> statuses, String recommendation})>((ref) async {
+    ({
+      Map<String, RecoveryStatus> statuses,
+      String recommendation
+    })>((ref) async {
   final workoutRepo = ref.watch(workoutRepositoryProvider);
   final exerciseRepo = ref.watch(exerciseRepositoryProvider);
   final muscleService = ref.watch(muscleLoadServiceProvider);
@@ -271,5 +279,8 @@ final recoveryProvider = FutureProvider<
     byGroup,
     allGroups: const ['Push', 'Pull', 'Legs', 'Core'],
   );
-  return (statuses: statuses, recommendation: recovery.recommendation(statuses));
+  return (
+    statuses: statuses,
+    recommendation: recovery.recommendation(statuses)
+  );
 });

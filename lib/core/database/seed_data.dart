@@ -570,15 +570,27 @@ class RuleSeed {
 }
 
 const List<RuleSeed> ruleSeeds = [
-  RuleSeed(exercise: 'Pompes classiques', maxReps: 20, nextVariant: 'Pompes déclinées'),
-  RuleSeed(exercise: 'Pompes déclinées', maxReps: 15, nextVariant: 'Pompes diamant'),
-  RuleSeed(exercise: 'Tractions pronation', maxReps: 10, nextVariant: 'Tractions tempo'),
-  RuleSeed(exercise: 'Tractions tempo', maxReps: 8, nextVariant: 'Tractions lestées'),
+  RuleSeed(
+      exercise: 'Pompes classiques',
+      maxReps: 20,
+      nextVariant: 'Pompes déclinées'),
+  RuleSeed(
+      exercise: 'Pompes déclinées', maxReps: 15, nextVariant: 'Pompes diamant'),
+  RuleSeed(
+      exercise: 'Tractions pronation',
+      maxReps: 10,
+      nextVariant: 'Tractions tempo'),
+  RuleSeed(
+      exercise: 'Tractions tempo',
+      maxReps: 8,
+      nextVariant: 'Tractions lestées'),
   RuleSeed(exercise: 'Dips', maxReps: 15),
   RuleSeed(exercise: 'Squats poids du corps', maxReps: 25),
-  RuleSeed(exercise: 'Gainage (planche)', maxSeconds: 90, nextVariant: 'Tuck L-sit'),
+  RuleSeed(
+      exercise: 'Gainage (planche)', maxSeconds: 90, nextVariant: 'Tuck L-sit'),
   RuleSeed(exercise: 'Hollow hold', maxSeconds: 45, nextVariant: 'Tuck L-sit'),
-  RuleSeed(exercise: 'Tuck L-sit', maxSeconds: 30, nextVariant: 'L-sit complet'),
+  RuleSeed(
+      exercise: 'Tuck L-sit', maxSeconds: 30, nextVariant: 'L-sit complet'),
 ];
 
 /// Injecte / complète les données seed. Idempotent : n'ajoute que ce qui manque.
@@ -590,7 +602,8 @@ Future<void> seedDatabase(AppDatabase db) async {
       batch.insertAll(
         db.muscles,
         seedMuscles
-            .map((m) => MusclesCompanion.insert(name: m.name, group: Value(m.group)))
+            .map((m) =>
+                MusclesCompanion.insert(name: m.name, group: Value(m.group)))
             .toList(),
       );
     });
@@ -630,11 +643,7 @@ Future<void> seedDatabase(AppDatabase db) async {
     });
   }
 
-  // 3. Liens de variantes + règles de progression (une seule fois).
-  final anyRule =
-      await (db.select(db.progressionRules)..limit(1)).getSingleOrNull();
-  if (anyRule != null) return;
-
+  // 3. Liens de variantes + règles de progression, complétés individuellement.
   for (final link in variantLinks) {
     final easierId = exerciseIdByName[link.easier];
     final harderId = exerciseIdByName[link.harder];
@@ -650,13 +659,28 @@ Future<void> seedDatabase(AppDatabase db) async {
     if (exerciseId == null) continue;
     final nextId =
         rule.nextVariant != null ? exerciseIdByName[rule.nextVariant] : null;
-    await db.into(db.progressionRules).insert(
-          ProgressionRulesCompanion.insert(
-            exerciseId: exerciseId,
-            maxReps: Value(rule.maxReps),
-            maxSeconds: Value(rule.maxSeconds),
-            nextVariantExerciseId: Value(nextId),
-          ),
-        );
+    final existingRule = await (db.select(db.progressionRules)
+          ..where((t) => t.exerciseId.equals(exerciseId))
+          ..limit(1))
+        .getSingleOrNull();
+    final companion = ProgressionRulesCompanion(
+      maxReps: Value(rule.maxReps),
+      maxSeconds: Value(rule.maxSeconds),
+      nextVariantExerciseId: Value(nextId),
+    );
+    if (existingRule == null) {
+      await db.into(db.progressionRules).insert(
+            ProgressionRulesCompanion.insert(
+              exerciseId: exerciseId,
+              maxReps: Value(rule.maxReps),
+              maxSeconds: Value(rule.maxSeconds),
+              nextVariantExerciseId: Value(nextId),
+            ),
+          );
+    } else {
+      await (db.update(db.progressionRules)
+            ..where((t) => t.id.equals(existingRule.id)))
+          .write(companion);
+    }
   }
 }

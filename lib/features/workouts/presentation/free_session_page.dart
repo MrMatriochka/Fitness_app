@@ -201,8 +201,8 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
     setState(() {
       for (final e in all.where((e) => result.contains(e.id))) {
         if (_items.any((it) => it.exercise.id == e.id)) continue;
-        final isTime = enumFromName(
-                MeasurementType.values, e.measurementType, MeasurementType.reps) ==
+        final isTime = enumFromName(MeasurementType.values, e.measurementType,
+                MeasurementType.reps) ==
             MeasurementType.time;
         _items.add(_FreeItem(
           exercise: e,
@@ -220,7 +220,8 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
     if (cycle == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucun cycle actif pour proposer une séance.')),
+        const SnackBar(
+            content: Text('Aucun cycle actif pour proposer une séance.')),
       );
       return;
     }
@@ -228,7 +229,8 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
     if (!mounted) return;
     if (templates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucune séance prédéfinie dans le cycle.')),
+        const SnackBar(
+            content: Text('Aucune séance prédéfinie dans le cycle.')),
       );
       return;
     }
@@ -266,7 +268,8 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
 
   /// Charge une séance express préfaite (§9.2) : circuit court 10 / 15 / 20 min.
   Future<void> _pickExpress() async {
-    const presets = <int, List<({String name, int sets, int reps, int seconds})>>{
+    const presets =
+        <int, List<({String name, int sets, int reps, int seconds})>>{
       10: [
         (name: 'Pompes classiques', sets: 3, reps: 12, seconds: 0),
         (name: 'Squats poids du corps', sets: 3, reps: 20, seconds: 0),
@@ -319,6 +322,13 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
   }
 
   Future<void> _save() async {
+    if (!_items.any((item) => item.done.isNotEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Coche au moins une série réalisée.')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       final performed = <PerformedInput>[];

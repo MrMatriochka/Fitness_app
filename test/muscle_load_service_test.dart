@@ -4,12 +4,15 @@ import 'package:fitness_app/features/muscles/domain/muscle_load_service.dart';
 void main() {
   const service = MuscleLoadService();
 
-  final pushups = PerformedForLoad(
+  const pushups = PerformedForLoad(
     volume: 40, // 4 x 10 reps
-    shares: const [
-      MuscleShare(muscleName: 'Pectoraux', group: 'Push', contributionPercent: 45),
-      MuscleShare(muscleName: 'Triceps', group: 'Push', contributionPercent: 30),
-      MuscleShare(muscleName: 'Épaules', group: 'Push', contributionPercent: 15),
+    shares: [
+      MuscleShare(
+          muscleName: 'Pectoraux', group: 'Push', contributionPercent: 45),
+      MuscleShare(
+          muscleName: 'Triceps', group: 'Push', contributionPercent: 30),
+      MuscleShare(
+          muscleName: 'Épaules', group: 'Push', contributionPercent: 15),
       MuscleShare(muscleName: 'Abdos', group: 'Core', contributionPercent: 10),
     ],
   );
@@ -29,9 +32,9 @@ void main() {
   });
 
   test('détecte les groupes sous-travaillés', () {
-    final pulls = PerformedForLoad(
+    const pulls = PerformedForLoad(
       volume: 4, // très peu de pull
-      shares: const [
+      shares: [
         MuscleShare(muscleName: 'Dos', group: 'Pull', contributionPercent: 100),
       ],
     );

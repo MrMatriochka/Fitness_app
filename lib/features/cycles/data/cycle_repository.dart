@@ -20,6 +20,7 @@ class CycleRepository {
   Future<Cycle?> getActiveCycle() {
     return (_db.select(_db.cycles)
           ..where((t) => t.status.equals(CycleStatus.active.name))
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
           ..limit(1))
         .getSingleOrNull();
   }
@@ -27,6 +28,7 @@ class CycleRepository {
   Stream<Cycle?> watchActiveCycle() {
     return (_db.select(_db.cycles)
           ..where((t) => t.status.equals(CycleStatus.active.name))
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
           ..limit(1))
         .watchSingleOrNull();
   }
@@ -34,7 +36,8 @@ class CycleRepository {
   /// Séance prévue pour un jour de la semaine ([weekday] : 1 = lundi).
   Future<WorkoutTemplate?> templateForWeekday(int cycleId, int weekday) {
     return (_db.select(_db.workoutTemplates)
-          ..where((t) => t.cycleId.equals(cycleId) & t.dayOfWeek.equals(weekday))
+          ..where(
+              (t) => t.cycleId.equals(cycleId) & t.dayOfWeek.equals(weekday))
           ..limit(1))
         .getSingleOrNull();
   }
@@ -78,9 +81,8 @@ class CycleRepository {
       WorkoutExerciseTemplatesCompanion(
         targetReps:
             targetReps != null ? Value(targetReps) : const Value.absent(),
-        targetSeconds: targetSeconds != null
-            ? Value(targetSeconds)
-            : const Value.absent(),
+        targetSeconds:
+            targetSeconds != null ? Value(targetSeconds) : const Value.absent(),
         targetWeightKg: targetWeightKg != null
             ? Value(targetWeightKg)
             : const Value.absent(),
@@ -101,63 +103,69 @@ class CycleRepository {
   Future<int> createStarterCycle({
     required String name,
     required int durationWeeks,
-    required Map<int, List<({int exerciseId, int sets, int reps, int seconds, int rest})>>
+    required Map<int,
+            List<({int exerciseId, int sets, int reps, int seconds, int rest})>>
         sessionsByWeekday,
     String goal = 'Force générale',
   }) async {
-    final cycleId = await _db.into(_db.cycles).insert(
-          CyclesCompanion.insert(
-            name: name,
-            goal: Value(goal),
-            durationWeeks: Value(durationWeeks),
-            startDate: Value(DateTime.now()),
-            status: CycleStatus.active.name,
-            deloadWeek: Value(durationWeeks),
-            sessionsPerWeek: Value(sessionsByWeekday.length),
-          ),
-        );
+    return _db.transaction(() async {
+      await deactivateActiveCycles();
 
-    for (var week = 1; week <= durationWeeks; week++) {
-      final type = week == durationWeeks ? WeekType.deload : WeekType.normal;
-      await _db.into(_db.cycleWeeks).insert(
-            CycleWeeksCompanion.insert(
-              cycleId: cycleId,
-              weekNumber: week,
-              type: type.name,
-            ),
-          );
-    }
-
-    for (final entry in sessionsByWeekday.entries) {
-      final weekday = entry.key;
-      final templateId = await _db.into(_db.workoutTemplates).insert(
-            WorkoutTemplatesCompanion.insert(
-              cycleId: cycleId,
-              name: _weekdayLabel(weekday),
-              dayOfWeek: Value(weekday),
-              category: const Value('Full/PPL'),
-              estimatedDurationMin: const Value(45),
+      final cycleId = await _db.into(_db.cycles).insert(
+            CyclesCompanion.insert(
+              name: name,
+              goal: Value(goal),
+              durationWeeks: Value(durationWeeks),
+              startDate: Value(DateTime.now()),
+              status: CycleStatus.active.name,
+              deloadWeek: Value(durationWeeks),
+              sessionsPerWeek: Value(sessionsByWeekday.length),
             ),
           );
 
-      var order = 0;
-      for (final ex in entry.value) {
-        await _db.into(_db.workoutExerciseTemplates).insert(
-              WorkoutExerciseTemplatesCompanion.insert(
-                workoutTemplateId: templateId,
-                exerciseId: ex.exerciseId,
-                order: Value(order++),
-                targetSets: Value(ex.sets),
-                targetReps: ex.reps > 0 ? Value(ex.reps) : const Value.absent(),
-                targetSeconds:
-                    ex.seconds > 0 ? Value(ex.seconds) : const Value.absent(),
-                restSeconds: Value(ex.rest),
+      for (var week = 1; week <= durationWeeks; week++) {
+        final type = week == durationWeeks ? WeekType.deload : WeekType.normal;
+        await _db.into(_db.cycleWeeks).insert(
+              CycleWeeksCompanion.insert(
+                cycleId: cycleId,
+                weekNumber: week,
+                type: type.name,
               ),
             );
       }
-    }
 
-    return cycleId;
+      for (final entry in sessionsByWeekday.entries) {
+        final weekday = entry.key;
+        final templateId = await _db.into(_db.workoutTemplates).insert(
+              WorkoutTemplatesCompanion.insert(
+                cycleId: cycleId,
+                name: _weekdayLabel(weekday),
+                dayOfWeek: Value(weekday),
+                category: const Value('Full/PPL'),
+                estimatedDurationMin: const Value(45),
+              ),
+            );
+
+        var order = 0;
+        for (final ex in entry.value) {
+          await _db.into(_db.workoutExerciseTemplates).insert(
+                WorkoutExerciseTemplatesCompanion.insert(
+                  workoutTemplateId: templateId,
+                  exerciseId: ex.exerciseId,
+                  order: Value(order++),
+                  targetSets: Value(ex.sets),
+                  targetReps:
+                      ex.reps > 0 ? Value(ex.reps) : const Value.absent(),
+                  targetSeconds:
+                      ex.seconds > 0 ? Value(ex.seconds) : const Value.absent(),
+                  restSeconds: Value(ex.rest),
+                ),
+              );
+        }
+      }
+
+      return cycleId;
+    });
   }
 
   String _weekdayLabel(int weekday) {

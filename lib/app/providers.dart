@@ -15,7 +15,9 @@ import '../features/profile/data/profile_repository.dart';
 import '../features/progression/domain/progression_service.dart';
 import '../features/progression/domain/readiness_service.dart';
 import '../features/streaks/domain/streak_service.dart';
+import '../features/workouts/data/favorite_repository.dart';
 import '../features/workouts/data/workout_repository.dart';
+import '../features/workouts/domain/quick_workout_generator_service.dart';
 
 /// Providers globaux : base de données, repositories et services métier.
 /// Point d'injection unique conforme à l'architecture en couches (§9).
@@ -35,6 +37,8 @@ final progressionServiceProvider =
 final readinessServiceProvider = Provider((ref) => const ReadinessService());
 final recoveryServiceProvider = Provider((ref) => const RecoveryService());
 final activityServiceProvider = Provider((ref) => const ActivityService());
+final quickWorkoutGeneratorServiceProvider =
+    Provider((ref) => const QuickWorkoutGeneratorService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(
@@ -58,9 +62,16 @@ final activityRepositoryProvider = Provider(
     activityService: ref.watch(activityServiceProvider),
   ),
 );
+final favoriteWorkoutRepositoryProvider = Provider(
+  (ref) => FavoriteWorkoutRepository(ref.watch(databaseProvider)),
+);
 final dataBackupServiceProvider = Provider(
   (ref) => DataBackupService(ref.watch(databaseProvider)),
 );
+
+/// Séances rapides favorites (extension §3.3).
+final favoritesProvider = FutureProvider(
+    (ref) => ref.watch(favoriteWorkoutRepositoryProvider).getAll());
 
 /// Outils de debug (réservés au build debug, cf. `kDebugMode` côté UI).
 final debugRepositoryProvider = Provider(

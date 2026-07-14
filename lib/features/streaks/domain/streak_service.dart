@@ -106,6 +106,50 @@ class StreakService {
     return streak;
   }
 
+  /// Plus longue série d'activité jamais atteinte (pour les badges permanents :
+  /// une série cassée ne doit pas retirer un badge déjà gagné).
+  int longestActivityStreak(List<StreakDay> events) {
+    final days = events
+        .where((e) => e.type == StreakEventType.activity)
+        .map((e) => _dateOnly(e.date))
+        .toSet();
+    return _longestRun(days);
+  }
+
+  /// Plus longue série « programme respecté ou repos prévu » sans jour manqué.
+  int longestProgramStreak(List<StreakDay> events) {
+    final byDay = <DateTime, Set<StreakEventType>>{};
+    for (final e in events) {
+      byDay.putIfAbsent(_dateOnly(e.date), () => {}).add(e.type);
+    }
+    final keptDays = <DateTime>{
+      for (final entry in byDay.entries)
+        if (!entry.value.contains(StreakEventType.programMissed) &&
+            (entry.value.contains(StreakEventType.programRespected) ||
+                entry.value.contains(StreakEventType.restDay)))
+          entry.key,
+    };
+    return _longestRun(keptDays);
+  }
+
+  /// Plus longue suite de jours calendaires consécutifs dans [days].
+  int _longestRun(Set<DateTime> days) {
+    if (days.isEmpty) return 0;
+    final sorted = days.toList()..sort();
+    var best = 1;
+    var current = 1;
+    for (var i = 1; i < sorted.length; i++) {
+      final expected = sorted[i - 1].add(const Duration(days: 1));
+      if (sorted[i] == expected) {
+        current++;
+        if (current > best) best = current;
+      } else {
+        current = 1;
+      }
+    }
+    return best;
+  }
+
   int _consecutiveStreak(Set<DateTime> days, {required DateTime today}) {
     final start = _dateOnly(today);
     var cursor = start;

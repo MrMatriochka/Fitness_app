@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../activities/presentation/add_activity_page.dart';
 import '../../companion/domain/companion_service.dart';
-import '../../companion/domain/companion_xp_service.dart';
 import '../../cycles/data/cycle_repository.dart';
 import '../../cycles/presentation/cycle_builder_page.dart';
 import '../../muscles/domain/recovery_service.dart';

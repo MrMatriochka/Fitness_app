@@ -29,6 +29,8 @@ part 'app_database.g.dart';
     StreakEvents,
     ProgressionRules,
     PersonalRecords,
+    ActivityLogs,
+    ActivityMetrics,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -38,12 +40,21 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+        },
+        onUpgrade: (m, from, to) async {
+          // v1 -> v2 : journal d'activité global + métriques par sport
+          // (extension séances rapides / activités / compagnon). Les données
+          // existantes sont conservées : on ajoute uniquement les tables.
+          if (from < 2) {
+            await m.createTable(activityLogs);
+            await m.createTable(activityMetrics);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');

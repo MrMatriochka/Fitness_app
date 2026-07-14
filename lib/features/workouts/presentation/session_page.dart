@@ -25,6 +25,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
   final Set<String> _done = {};
   final DateTime _startedAt = DateTime.now();
   bool _saving = false;
+  bool _finished = false;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +56,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
               for (var i = 0; i < list.length; i++) _exerciseCard(i, list[i]),
               const SizedBox(height: 8),
               FilledButton.icon(
-                onPressed: _saving ? null : () => _finish(list),
+                onPressed: _saving || _finished ? null : () => _finish(list),
                 icon: _saving
                     ? const SizedBox(
                         width: 18,
@@ -271,6 +272,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
 
       if (!mounted) return;
       _done.clear();
+      _finished = true;
       invalidateSessionData(ref);
       await _showResult(status, kcal, durationSeconds, coach, deloadAdvice);
     } finally {
@@ -285,6 +287,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
       List<PlannedExercise> list) async {
     final service = ref.read(progressionServiceProvider);
     final repo = ref.read(exerciseRepositoryProvider);
+    final workoutRepo = ref.read(workoutRepositoryProvider);
     final result = <_CoachItem>[];
     for (var i = 0; i < list.length; i++) {
       final p = list[i];
@@ -294,14 +297,15 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         if (_done.contains('$i:$s')) done++;
       }
       final perf = LastPerformance(
-        measurementType: enumFromName(
-            MeasurementType.values, p.exercise.measurementType, MeasurementType.reps),
+        measurementType: enumFromName(MeasurementType.values,
+            p.exercise.measurementType, MeasurementType.reps),
         targetSets: targetSets,
         completedSets: done,
         targetReps: p.template.targetReps,
         targetSeconds: p.template.targetSeconds,
         targetWeightKg: p.template.targetWeightKg,
-        consecutiveFailures: done >= targetSets ? 0 : 1,
+        consecutiveFailures:
+            await workoutRepo.consecutiveFailuresForExercise(p.exercise.id),
       );
 
       final rule = await repo.progressionRuleFor(p.exercise.id);
@@ -475,8 +479,8 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(c.exercise,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold)),
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
                         Text(c.message),
                         for (final o in c.options)
                           Padding(
@@ -503,7 +507,8 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Objectifs mis à jour pour la prochaine séance ✅'),
+                      content: Text(
+                          'Objectifs mis à jour pour la prochaine séance ✅'),
                     ),
                   );
                 }

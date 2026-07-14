@@ -379,11 +379,19 @@ class _RecoveryCard extends ConsumerWidget {
 
   Widget _statusChip(BuildContext context, String group, RecoveryStatus status) {
     final scheme = Theme.of(context).colorScheme;
-    final (String label, Color bg) = switch (status) {
-      RecoveryStatus.fresh => ('frais', scheme.secondaryContainer),
-      RecoveryStatus.worked => ('sollicité', scheme.tertiaryContainer),
-      RecoveryStatus.fatigued => ('fatigué', scheme.errorContainer),
-    };
+    String label;
+    Color bg;
+    switch (status) {
+      case RecoveryStatus.fresh:
+        label = 'frais';
+        bg = scheme.secondaryContainer;
+      case RecoveryStatus.worked:
+        label = 'sollicité';
+        bg = scheme.tertiaryContainer;
+      case RecoveryStatus.fatigued:
+        label = 'fatigué';
+        bg = scheme.errorContainer;
+    }
     return Chip(
       label: Text('$group : $label'),
       backgroundColor: bg,

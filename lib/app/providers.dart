@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/enums.dart';
 import '../core/database/app_database.dart';
 import '../features/activities/data/activity_repository.dart';
+import '../features/activities/domain/activity_impact_service.dart';
 import '../features/activities/domain/activity_service.dart';
 import '../features/backup/data/data_backup_service.dart';
 import '../features/calories/domain/calories_service.dart';
@@ -38,6 +39,8 @@ final progressionServiceProvider =
 final readinessServiceProvider = Provider((ref) => const ReadinessService());
 final recoveryServiceProvider = Provider((ref) => const RecoveryService());
 final activityServiceProvider = Provider((ref) => const ActivityService());
+final activityImpactServiceProvider =
+    Provider((ref) => const ActivityImpactService());
 final quickWorkoutGeneratorServiceProvider =
     Provider((ref) => const QuickWorkoutGeneratorService());
 final companionServiceProvider = Provider((ref) => const CompanionService());
@@ -363,10 +366,13 @@ final recoveryProvider = FutureProvider<
     })>((ref) async {
   final workoutRepo = ref.watch(workoutRepositoryProvider);
   final exerciseRepo = ref.watch(exerciseRepositoryProvider);
+  final activityRepo = ref.watch(activityRepositoryProvider);
   final muscleService = ref.watch(muscleLoadServiceProvider);
+  final impactService = ref.watch(activityImpactServiceProvider);
   final recovery = ref.watch(recoveryServiceProvider);
 
-  final since = DateTime.now().subtract(const Duration(days: 3));
+  final now = DateTime.now();
+  final since = now.subtract(const Duration(days: 3));
   final volumeByExercise = await workoutRepo.volumeByExerciseSince(since);
 
   final performed = <PerformedForLoad>[];
@@ -385,6 +391,24 @@ final recoveryProvider = FutureProvider<
   }
 
   final byGroup = muscleService.loadByGroup(performed);
+
+  // Fatigue issue des activités sportives externes (§6, Épic 3) : l'escalade
+  // charge le Pull, la course les jambes, etc. Yoga/mobilité n'ajoutent rien.
+  final activities =
+      await activityRepo.activitiesBetween(since, now.add(const Duration(days: 1)));
+  final activityLoad = impactService.loadByGroup([
+    for (final a in activities)
+      if (a.sportType != null)
+        ActivityImpactInput(
+          sport: enumFromName(SportType.values, a.sportType, SportType.other),
+          durationSeconds: a.durationSeconds,
+          rpe: a.rpe,
+        ),
+  ]);
+  for (final e in activityLoad.entries) {
+    byGroup[e.key] = (byGroup[e.key] ?? 0) + e.value;
+  }
+
   final statuses = recovery.assess(
     byGroup,
     allGroups: const ['Push', 'Pull', 'Legs', 'Core'],

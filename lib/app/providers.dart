@@ -323,6 +323,7 @@ final badgesProvider =
     FutureProvider<({List<BadgeStatus> all, int earned})>((ref) async {
   final workoutRepo = ref.watch(workoutRepositoryProvider);
   final activityRepo = ref.watch(activityRepositoryProvider);
+  final streakService = ref.watch(streakServiceProvider);
   final service = ref.watch(badgeServiceProvider);
 
   final activities = await activityRepo.allActivities();
@@ -333,15 +334,15 @@ final badgesProvider =
 
   final days = await workoutRepo.allStreakDays();
   final restDays = days.where((d) => d.type == StreakEventType.restDay).length;
-
-  final streak = await ref.watch(streakSummaryProvider.future);
   final records = await workoutRepo.recordsSince(DateTime(2000));
 
   final stats = BadgeStats(
     totalSessions: await workoutRepo.trainingSessionCount(),
     totalActivities: activities.length,
-    activityStreak: streak.activity,
-    programStreak: streak.program,
+    // Meilleure série jamais atteinte : un badge de flamme ne se perd pas si la
+    // série est cassée (anti-culpabilisation).
+    activityStreak: streakService.longestActivityStreak(days),
+    programStreak: streakService.longestProgramStreak(days),
     distinctSports: distinctSports,
     personalRecords: records.length,
     restDays: restDays,

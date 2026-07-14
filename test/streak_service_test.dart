@@ -110,4 +110,43 @@ void main() {
       expect(service.activityStreak(events, today: today), 1);
     });
   });
+
+  group('longestActivityStreak (badges permanents)', () {
+    test('retient la meilleure série même si elle est passée', () {
+      final events = [
+        // Série de 3 (1→3 juillet)
+        StreakDay(date: DateTime(2026, 7, 1), type: StreakEventType.activity),
+        StreakDay(date: DateTime(2026, 7, 2), type: StreakEventType.activity),
+        StreakDay(date: DateTime(2026, 7, 3), type: StreakEventType.activity),
+        // Trou, puis série de 1
+        StreakDay(date: DateTime(2026, 7, 10), type: StreakEventType.activity),
+      ];
+      expect(service.longestActivityStreak(events), 3);
+    });
+
+    test('vide => 0', () {
+      expect(service.longestActivityStreak(const []), 0);
+    });
+
+    test('plusieurs évènements le même jour comptent une fois', () {
+      final events = [
+        StreakDay(date: DateTime(2026, 7, 1, 8), type: StreakEventType.activity),
+        StreakDay(date: DateTime(2026, 7, 1, 20), type: StreakEventType.activity),
+      ];
+      expect(service.longestActivityStreak(events), 1);
+    });
+  });
+
+  group('longestProgramStreak', () {
+    test('meilleure suite respectée/repos sans jour manqué', () {
+      final events = [
+        StreakDay(date: DateTime(2026, 7, 1), type: StreakEventType.programRespected),
+        StreakDay(date: DateTime(2026, 7, 2), type: StreakEventType.restDay),
+        StreakDay(date: DateTime(2026, 7, 3), type: StreakEventType.programRespected),
+        StreakDay(date: DateTime(2026, 7, 4), type: StreakEventType.programMissed),
+        StreakDay(date: DateTime(2026, 7, 5), type: StreakEventType.programRespected),
+      ];
+      expect(service.longestProgramStreak(events), 3);
+    });
+  });
 }

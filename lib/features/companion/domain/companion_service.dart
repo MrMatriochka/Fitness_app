@@ -4,6 +4,7 @@
 /// le compagnon ne meurt jamais, ne se réinitialise pas, valorise le repos et
 /// encourage les petites actions. L'état est *calculé* à partir de l'historique
 /// (aucune donnée persistée), donc toujours cohérent avec l'activité réelle.
+library;
 
 /// Énergie du compagnon (§8.3).
 enum CompanionEnergy { tired, normal, motivated, fit, onFire }

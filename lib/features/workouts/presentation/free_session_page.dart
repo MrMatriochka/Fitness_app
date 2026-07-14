@@ -402,8 +402,8 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
   }
 
   bool _isTimeBased(Exercise e) {
-    final type =
-        enumFromName(MeasurementType.values, e.measurementType, MeasurementType.reps);
+    final type = enumFromName(
+        MeasurementType.values, e.measurementType, MeasurementType.reps);
     return type == MeasurementType.time || type == MeasurementType.timeWeight;
   }
 
@@ -459,7 +459,8 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
     if (favorites.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Aucun favori. Construis une séance et sauvegarde-la.')),
+            content:
+                Text('Aucun favori. Construis une séance et sauvegarde-la.')),
       );
       return;
     }
@@ -491,22 +492,40 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
     );
     if (chosen == null) return;
 
-    final favItems = repo.itemsOf(chosen);
+    late final List<FavoriteItem> favItems;
+    try {
+      favItems = repo.itemsOf(chosen);
+    } on FormatException catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ce favori est invalide.')),
+      );
+      return;
+    }
     final all = await ref.read(exerciseRepositoryProvider).getAll();
     if (!mounted) return;
     final byId = {for (final e in all) e.id: e};
+    final validItems = favItems.where((i) => byId.containsKey(i.exerciseId));
+    if (validItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ce favori ne contient plus d\'exercices disponibles.'),
+        ),
+      );
+      return;
+    }
     setState(() {
       _items
         ..clear()
-        ..addAll(favItems.where((i) => byId.containsKey(i.exerciseId)).map(
-              (i) => _FreeItem(
-                exercise: byId[i.exerciseId]!,
-                sets: i.sets,
-                targetReps: i.reps,
-                targetSeconds: i.seconds,
-                targetWeightKg: i.weightKg,
-              ),
-            ));
+        ..addAll(validItems.map(
+          (i) => _FreeItem(
+            exercise: byId[i.exerciseId]!,
+            sets: i.sets,
+            targetReps: i.reps,
+            targetSeconds: i.seconds,
+            targetWeightKg: i.weightKg,
+          ),
+        ));
     });
   }
 

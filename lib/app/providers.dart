@@ -146,8 +146,14 @@ final calendarMonthProvider = FutureProvider<
   final sessions = await repo.sessionsBetween(start, end);
   final status = <int, SessionStatus>{};
   for (final s in sessions) {
-    status[s.date.day] =
+    final sessionStatus =
         enumFromName(SessionStatus.values, s.status, SessionStatus.completed);
+    final current = status[s.date.day];
+    if (current == null ||
+        _calendarStatusPriority(sessionStatus) >
+            _calendarStatusPriority(current)) {
+      status[s.date.day] = sessionStatus;
+    }
   }
 
   final events = await repo.streakEventsBetween(start, end);
@@ -162,6 +168,22 @@ final calendarMonthProvider = FutureProvider<
 
   return (status: status, activityDays: activityDays, bonusDays: bonusDays);
 });
+
+int _calendarStatusPriority(SessionStatus status) {
+  switch (status) {
+    case SessionStatus.completed:
+    case SessionStatus.freeSession:
+      return 4;
+    case SessionStatus.partial:
+      return 3;
+    case SessionStatus.inProgress:
+      return 2;
+    case SessionStatus.planned:
+      return 1;
+    case SessionStatus.missed:
+      return 0;
+  }
+}
 
 /// Invalide tous les providers dérivés des séances/flammes. À appeler après
 /// toute écriture (fin de séance, séance libre, outils debug).
@@ -187,7 +209,8 @@ final companionProvider =
 
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final weekStart = today.subtract(const Duration(days: 6)); // 7 jours glissants
+  final weekStart =
+      today.subtract(const Duration(days: 6)); // 7 jours glissants
   final endExclusive = today.add(const Duration(days: 1));
 
   bool isTraining(WorkoutSession s) =>
@@ -198,7 +221,8 @@ final companionProvider =
   final sessions = (await workoutRepo.sessionsBetween(weekStart, endExclusive))
       .where(isTraining)
       .toList();
-  final activities = await activityRepo.activitiesBetween(weekStart, endExclusive);
+  final activities =
+      await activityRepo.activitiesBetween(weekStart, endExclusive);
 
   String dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
   final activeDays = <String>{

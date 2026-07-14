@@ -32,6 +32,9 @@ class ActivityRepository {
   final AppDatabase _db;
   final ActivityService _service;
 
+  static String _streakSourceFor(int activityLogId) =>
+      'activity:$activityLogId';
+
   /// Enregistre une activité et sa flamme activité. Renvoie l'id de l'activité.
   ///
   /// [weightKg] (profil) sert à l'estimation calorique ; si absent, calories
@@ -94,7 +97,7 @@ class ActivityRepository {
               StreakEventsCompanion.insert(
                 date: date,
                 type: StreakEventType.activity.name,
-                source: const Value('activity'),
+                source: Value(_streakSourceFor(logId)),
               ),
             );
       }
@@ -103,7 +106,7 @@ class ActivityRepository {
               StreakEventsCompanion.insert(
                 date: date,
                 type: StreakEventType.bonus.name,
-                source: const Value('activity'),
+                source: Value(_streakSourceFor(logId)),
               ),
             );
       }
@@ -113,8 +116,7 @@ class ActivityRepository {
   }
 
   /// Activités entre [start] (inclus) et [end] (exclu), plus récentes d'abord.
-  Future<List<ActivityLog>> activitiesBetween(
-      DateTime start, DateTime end) {
+  Future<List<ActivityLog>> activitiesBetween(DateTime start, DateTime end) {
     return (_db.select(_db.activityLogs)
           ..where((t) =>
               t.date.isBiggerOrEqualValue(start) &
@@ -158,7 +160,7 @@ class ActivityRepository {
   }
 
   /// Supprime une activité (et ses métriques, via cascade) ainsi que les
-  /// flammes générées le même jour par une activité.
+  /// flammes générées par cette activité précise.
   Future<void> deleteActivity(int id) async {
     await _db.transaction(() async {
       final log = await (_db.select(_db.activityLogs)
@@ -166,13 +168,8 @@ class ActivityRepository {
           .getSingleOrNull();
       await (_db.delete(_db.activityLogs)..where((t) => t.id.equals(id))).go();
       if (log != null) {
-        final dayStart = DateTime(log.date.year, log.date.month, log.date.day);
-        final dayEnd = dayStart.add(const Duration(days: 1));
         await (_db.delete(_db.streakEvents)
-              ..where((t) =>
-                  t.source.equals('activity') &
-                  t.date.isBiggerOrEqualValue(dayStart) &
-                  t.date.isSmallerThanValue(dayEnd)))
+              ..where((t) => t.source.equals(_streakSourceFor(id))))
             .go();
       }
     });

@@ -6,19 +6,53 @@ void main() {
 
   const pool = [
     QuickCandidate(
-        id: 1, name: 'Pompes', group: 'Push', equipment: 'aucun', isTimeBased: false),
+        id: 1,
+        name: 'Pompes',
+        group: 'Push',
+        equipment: 'aucun',
+        isTimeBased: false),
     QuickCandidate(
-        id: 2, name: 'Dips', group: 'Push', equipment: 'barres parallèles', isTimeBased: false),
+        id: 2,
+        name: 'Dips',
+        group: 'Push',
+        equipment: 'barres parallèles',
+        isTimeBased: false),
     QuickCandidate(
-        id: 3, name: 'Tractions', group: 'Pull', equipment: 'barre de traction', isTimeBased: false),
+        id: 3,
+        name: 'Tractions',
+        group: 'Pull',
+        equipment: 'barre de traction',
+        isTimeBased: false),
     QuickCandidate(
-        id: 4, name: 'Rowing haltère', group: 'Pull', equipment: 'haltères', isTimeBased: false),
+        id: 4,
+        name: 'Rowing haltère',
+        group: 'Pull',
+        equipment: 'haltères',
+        isTimeBased: false),
     QuickCandidate(
-        id: 5, name: 'Squats', group: 'Legs', equipment: 'aucun', isTimeBased: false),
+        id: 5,
+        name: 'Squats',
+        group: 'Legs',
+        equipment: 'aucun',
+        isTimeBased: false),
     QuickCandidate(
-        id: 6, name: 'Gainage', group: 'Core', equipment: 'tapis', isTimeBased: true),
+        id: 6,
+        name: 'Gainage',
+        group: 'Core',
+        equipment: 'tapis',
+        isTimeBased: true),
     QuickCandidate(
-        id: 7, name: 'Hollow hold', group: 'Core', equipment: 'tapis', isTimeBased: true),
+        id: 7,
+        name: 'Hollow hold',
+        group: 'Core',
+        equipment: 'tapis',
+        isTimeBased: true),
+    QuickCandidate(
+        id: 8,
+        name: 'Goblet squat',
+        group: 'Legs',
+        equipment: 'haltère',
+        isTimeBased: false),
   ];
 
   test('nombre d\'exercices selon la durée', () {
@@ -40,14 +74,20 @@ void main() {
     // par d'autres exercices éligibles au poids du corps.
     expect(plan.items.first.name, 'Pompes');
     expect(plan.items.every((i) => i.exerciseId != 2), isTrue); // Dips exclus
-    expect(plan.items.every((i) => i.exerciseId != 3), isTrue); // Tractions exclues
+    expect(plan.items.every((i) => i.exerciseId != 3),
+        isTrue); // Tractions exclues
   });
 
   test('full body alterne les groupes', () {
     final plan = service.generate(
       durationMinutes: 20, // 5 exercices
       objective: QuickObjective.fullBody,
-      availableEquipment: {'haltères', 'barre de traction', 'barres parallèles', 'tapis'},
+      availableEquipment: {
+        'haltères',
+        'barre de traction',
+        'barres parallèles',
+        'tapis'
+      },
       pool: pool,
     );
     expect(plan.items.length, 5);
@@ -62,7 +102,12 @@ void main() {
     final plan = service.generate(
       durationMinutes: 30,
       objective: QuickObjective.fullBody,
-      availableEquipment: {'haltères', 'barre de traction', 'barres parallèles', 'tapis'},
+      availableEquipment: {
+        'haltères',
+        'barre de traction',
+        'barres parallèles',
+        'tapis'
+      },
       pool: pool,
       constraints: const QuickConstraints(noLegs: true),
     );
@@ -78,10 +123,22 @@ void main() {
       constraints: const QuickConstraints(noPullUpBar: true),
     );
     expect(plan.items.every((i) => i.exerciseId != 3), isTrue); // Tractions
-    expect(plan.items.any((i) => i.exerciseId == 4), isTrue); // Rowing haltère ok
+    expect(
+        plan.items.any((i) => i.exerciseId == 4), isTrue); // Rowing haltère ok
   });
 
-  test('les exercices au temps utilisent des secondes, les autres des reps', () {
+  test('normalise les variantes de libellé matériel', () {
+    final plan = service.generate(
+      durationMinutes: 10,
+      objective: QuickObjective.legs,
+      availableEquipment: {'haltères'},
+      pool: pool,
+    );
+    expect(plan.items.any((i) => i.exerciseId == 8), isTrue);
+  });
+
+  test('les exercices au temps utilisent des secondes, les autres des reps',
+      () {
     final plan = service.generate(
       durationMinutes: 15,
       objective: QuickObjective.mobility,

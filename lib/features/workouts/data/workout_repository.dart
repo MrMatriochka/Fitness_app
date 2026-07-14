@@ -50,8 +50,18 @@ class WorkoutRepository {
           ..where((t) =>
               t.date.isBiggerOrEqualValue(start) &
               t.date.isSmallerThanValue(end))
-          ..limit(1))
-        .getSingleOrNull();
+          ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+        .get()
+        .then((sessions) {
+      if (sessions.isEmpty) return null;
+      sessions.sort((a, b) {
+        final byPriority =
+            _sessionPriority(b.status).compareTo(_sessionPriority(a.status));
+        if (byPriority != 0) return byPriority;
+        return b.date.compareTo(a.date);
+      });
+      return sessions.first;
+    });
   }
 
   Future<List<WorkoutSession>> sessionsBetween(DateTime start, DateTime end) {
@@ -80,6 +90,24 @@ class WorkoutRepository {
                   StreakEventType.values, e.type, StreakEventType.activity),
             ))
         .toList();
+  }
+
+  int _sessionPriority(String rawStatus) {
+    final status =
+        enumFromName(SessionStatus.values, rawStatus, SessionStatus.completed);
+    switch (status) {
+      case SessionStatus.completed:
+      case SessionStatus.freeSession:
+        return 4;
+      case SessionStatus.partial:
+        return 3;
+      case SessionStatus.inProgress:
+        return 2;
+      case SessionStatus.planned:
+        return 1;
+      case SessionStatus.missed:
+        return 0;
+    }
   }
 
   /// Enregistre une séance réalisée, génère les évènements de flamme et met à

@@ -44,16 +44,37 @@ class FavoriteWorkoutRepository {
   final AppDatabase _db;
 
   Future<int> saveFavorite(String name, List<FavoriteItem> items) {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Le nom du favori est requis.');
+    }
+    if (items.isEmpty) {
+      throw ArgumentError.value(
+          items, 'items', 'Le favori doit contenir au moins un exercice.');
+    }
+    for (final item in items) {
+      if (item.exerciseId <= 0) {
+        throw ArgumentError.value(
+            item.exerciseId, 'exerciseId', 'Identifiant exercice invalide.');
+      }
+      if (item.sets <= 0) {
+        throw ArgumentError.value(
+            item.sets, 'sets', 'Le nombre de séries doit être positif.');
+      }
+    }
+
     final payload = jsonEncode([for (final i in items) i.toJson()]);
     return _db.into(_db.favoriteWorkouts).insert(
-          FavoriteWorkoutsCompanion.insert(name: name, payloadJson: payload),
+          FavoriteWorkoutsCompanion.insert(
+              name: trimmedName, payloadJson: payload),
         );
   }
 
   Future<List<FavoriteWorkout>> getAll() {
     return (_db.select(_db.favoriteWorkouts)
           ..orderBy([
-            (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)
+            (t) =>
+                OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)
           ]))
         .get();
   }
@@ -62,9 +83,16 @@ class FavoriteWorkoutRepository {
   List<FavoriteItem> itemsOf(FavoriteWorkout favorite) {
     final raw = jsonDecode(favorite.payloadJson) as List;
     return [
-      for (final e in raw)
-        FavoriteItem.fromJson((e as Map).cast<String, dynamic>()),
+      for (final e in raw) _readItem((e as Map).cast<String, dynamic>()),
     ];
+  }
+
+  FavoriteItem _readItem(Map<String, dynamic> json) {
+    final item = FavoriteItem.fromJson(json);
+    if (item.exerciseId <= 0 || item.sets <= 0) {
+      throw FormatException('Favori invalide', json);
+    }
+    return item;
   }
 
   Future<void> deleteFavorite(int id) {

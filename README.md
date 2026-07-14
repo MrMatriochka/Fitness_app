@@ -8,6 +8,8 @@ réalistes.
 Ce dépôt correspond à l'**ossature + première boucle fonctionnelle** décrite
 dans le document de cadrage (`memoire_suivi_app_fitness_calisthenie.md`).
 
+Pour reprendre rapidement le code, voir aussi [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ## Stack
 
 - **Flutter** (UI + logique)

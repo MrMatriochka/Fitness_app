@@ -4,6 +4,7 @@
 /// objectif, matériel disponible, contraintes), il choisit des exercices dans
 /// un vivier fourni et construit un plan (séries / reps / temps). Déterministe :
 /// à vivier et paramètres identiques, il renvoie toujours le même plan.
+library;
 
 /// Objectif d'une séance rapide.
 enum QuickObjective { fullBody, push, pull, legs, core, mobility }
@@ -89,8 +90,11 @@ class QuickWorkoutGeneratorService {
     QuickConstraints constraints = const QuickConstraints(),
   }) {
     final count = exerciseCountFor(durationMinutes);
-    final eligible =
-        pool.where((c) => _isEligible(c, availableEquipment, constraints)).toList();
+    final normalizedEquipment =
+        availableEquipment.expand(_equipmentTags).toSet();
+    final eligible = pool
+        .where((c) => _isEligible(c, normalizedEquipment, constraints))
+        .toList();
 
     final List<QuickCandidate> chosen;
     switch (objective) {
@@ -138,21 +142,41 @@ class QuickWorkoutGeneratorService {
 
   bool _isEligible(
     QuickCandidate c,
-    Set<String> availableEquipment,
+    Set<String> availableEquipmentTags,
     QuickConstraints constraints,
   ) {
     // Matériel : le poids du corps ('aucun') est toujours disponible.
     final equip = c.equipment;
-    final hasEquipment =
-        equip == null || equip == 'aucun' || availableEquipment.contains(equip);
+    final requiredTags = _equipmentTags(equip);
+    final hasEquipment = requiredTags.isEmpty ||
+        requiredTags.every(availableEquipmentTags.contains);
     if (!hasEquipment) return false;
 
     if (constraints.noLegs && c.group == 'Legs') return false;
-    if (constraints.noPullUpBar && equip == 'barre de traction') return false;
+    if (constraints.noPullUpBar && requiredTags.contains('barre de traction')) {
+      return false;
+    }
     if (constraints.noJumps && c.name.toLowerCase().contains('saut')) {
       return false;
     }
     return true;
+  }
+
+  Set<String> _equipmentTags(String? raw) {
+    if (raw == null) return const {};
+    final value = raw.toLowerCase().trim();
+    if (value.isEmpty || value == 'aucun') return const {};
+
+    final tags = <String>{};
+    if (value.contains('halt')) tags.add('haltères');
+    if (value.contains('parall')) {
+      tags.add('barres parallèles');
+    } else if (value.contains('traction') || value.contains('barre')) {
+      tags.add('barre de traction');
+    }
+    if (value.contains('tapis')) tags.add('tapis');
+    if (tags.isNotEmpty) return tags;
+    return {value};
   }
 
   List<QuickCandidate> _pickGroup(
@@ -168,8 +192,7 @@ class QuickWorkoutGeneratorService {
   List<QuickCandidate> _pickFullBody(List<QuickCandidate> pool, int count) {
     // Tour de rôle Push -> Pull -> Legs -> Core pour un équilibre corps entier.
     final byGroup = {
-      for (final g in _groupOrder)
-        g: pool.where((c) => c.group == g).toList(),
+      for (final g in _groupOrder) g: pool.where((c) => c.group == g).toList(),
     };
     final indices = {for (final g in _groupOrder) g: 0};
     final result = <QuickCandidate>[];
@@ -194,7 +217,8 @@ class QuickWorkoutGeneratorService {
     // Mobilité / récupération : privilégie les exercices au temps (gainage,
     // maintiens) puis le Core, doux et sans matériel lourd.
     final timeBased = pool.where((c) => c.isTimeBased).toList();
-    final core = pool.where((c) => c.group == 'Core' && !c.isTimeBased).toList();
+    final core =
+        pool.where((c) => c.group == 'Core' && !c.isTimeBased).toList();
     final result = <QuickCandidate>[];
     for (final c in [...timeBased, ...core]) {
       if (result.length >= count) break;

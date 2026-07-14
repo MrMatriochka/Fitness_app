@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
+import '../../activities/presentation/add_activity_page.dart';
 import '../../cycles/data/cycle_repository.dart';
 import '../../cycles/presentation/cycle_builder_page.dart';
 import '../../muscles/domain/recovery_service.dart';
@@ -54,6 +55,8 @@ class HomePage extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             const _StreakRow(),
+            const SizedBox(height: 12),
+            const _QuickActionsCard(),
             const SizedBox(height: 12),
             cycle.when(
               data: (c) => c == null
@@ -108,6 +111,39 @@ class HomePage extends ConsumerWidget {
     );
     ref.invalidate(todayTemplateProvider);
     ref.invalidate(todayPlannedProvider);
+  }
+}
+
+/// Actions rapides de l'accueil (§10). En Lot B : ajouter une activité hors
+/// programme (course, piscine, escalade…).
+class _QuickActionsCard extends ConsumerWidget {
+  const _QuickActionsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final added = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => const AddActivityPage(),
+                    ),
+                  );
+                  if (added == true) invalidateSessionData(ref);
+                },
+                icon: const Icon(Icons.directions_run),
+                label: const Text('Ajouter une activité'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

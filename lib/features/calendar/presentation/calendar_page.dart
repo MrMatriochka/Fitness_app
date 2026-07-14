@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
+import '../../../core/database/app_database.dart';
+import '../../activities/presentation/activity_labels.dart';
 
 /// Onglet Calendrier (§8.4). Vue mois : statut des séances + flammes d'activité.
 class CalendarPage extends ConsumerWidget {
@@ -46,6 +48,7 @@ class CalendarPage extends ConsumerWidget {
                       hasBonus: data.bonusDays.contains(dayNumber),
                       onTap: () => _showDayDetails(
                         context,
+                        ref,
                         DateTime(now.year, now.month, dayNumber),
                         status: data.status[dayNumber],
                         hasActivity: data.activityDays.contains(dayNumber),
@@ -73,11 +76,14 @@ class CalendarPage extends ConsumerWidget {
 
   void _showDayDetails(
     BuildContext context,
+    WidgetRef ref,
     DateTime date, {
     SessionStatus? status,
     required bool hasActivity,
     required bool hasBonus,
   }) {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -107,6 +113,31 @@ class CalendarPage extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Text(l),
                   ),
+              FutureBuilder<List<ActivityLog>>(
+                future: ref
+                    .read(activityRepositoryProvider)
+                    .activitiesBetween(dayStart, dayEnd),
+                builder: (context, snap) {
+                  final activities = snap.data ?? const [];
+                  if (activities.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      Text('Activités',
+                          style: Theme.of(context).textTheme.titleSmall),
+                      for (final a in activities)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            '${activityEmoji(a)}  ${activityTitle(a)}'
+                            '${activitySubtitle(a).isEmpty ? '' : ' — ${activitySubtitle(a)}'}',
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         );

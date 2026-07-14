@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
 import '../../../core/database/app_database.dart';
+import '../../activities/presentation/activity_labels.dart';
+import '../../activities/presentation/add_activity_page.dart';
 import 'personal_records_page.dart';
 
 /// Onglet Progression (§8.6) : bilan hebdo, charge musculaire, historique des
@@ -20,6 +22,7 @@ class ProgressionPage extends ConsumerWidget {
           ref.invalidate(weeklyMuscleLoadProvider);
           ref.invalidate(weeklySummaryProvider);
           ref.invalidate(recentSessionsProvider);
+          ref.invalidate(recentActivitiesProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -42,9 +45,82 @@ class ProgressionPage extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             const _HistoryList(),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Historique des activités',
+                    style: Theme.of(context).textTheme.titleMedium),
+                TextButton.icon(
+                  onPressed: () async {
+                    final added = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute<bool>(
+                        builder: (_) => const AddActivityPage(),
+                      ),
+                    );
+                    if (added == true) ref.invalidate(recentActivitiesProvider);
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Ajouter'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const _ActivityHistoryList(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Liste des dernières activités enregistrées (extension §13, Épic 2).
+class _ActivityHistoryList extends ConsumerWidget {
+  const _ActivityHistoryList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activities = ref.watch(recentActivitiesProvider);
+    return activities.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(8),
+        child: LinearProgressIndicator(),
+      ),
+      error: (e, _) => Text('Erreur : $e'),
+      data: (list) {
+        if (list.isEmpty) {
+          return const Text(
+            'Aucune activité pour l\'instant. Ajoute une course, une séance '
+            'de piscine, d\'escalade…',
+          );
+        }
+        return Column(
+          children: [
+            for (final a in list)
+              Card(
+                child: ListTile(
+                  leading: Text(activityEmoji(a),
+                      style: const TextStyle(fontSize: 22)),
+                  title: Text(activityTitle(a)),
+                  subtitle: Text([
+                    activityDateLabel(a.date),
+                    if (activitySubtitle(a).isNotEmpty) activitySubtitle(a),
+                  ].join(' · ')),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Supprimer',
+                    onPressed: () async {
+                      await ref
+                          .read(activityRepositoryProvider)
+                          .deleteActivity(a.id);
+                      invalidateSessionData(ref);
+                    },
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

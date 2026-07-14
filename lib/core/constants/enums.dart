@@ -37,6 +37,30 @@ enum StreakEventType {
 /// Type de record personnel.
 enum RecordType { maxReps, maxWeight, maxTime, maxVolume, bestSession }
 
+/// Nature d'une activité enregistrée dans le journal global (§7.1 extension).
+enum ActivityType {
+  structuredWorkout,
+  quickWorkout,
+  sportActivity,
+  mobility,
+  recovery,
+}
+
+/// Sport pratiqué pour une activité hors calisthénie (§4.1 extension).
+enum SportType {
+  running,
+  swimming,
+  climbing,
+  cycling,
+  walking,
+  hiking,
+  yoga,
+  mobility,
+  football,
+  padel,
+  other,
+}
+
 /// Niveau de l'utilisateur.
 enum UserLevel { beginner, intermediate, advanced }
 

@@ -184,3 +184,35 @@ class PersonalRecords extends Table {
       .nullable()
       .references(WorkoutSessions, #id, onDelete: KeyAction.setNull)();
 }
+
+/// Journal global d'activité (extension §7.1) : entité pivot de TOUTE activité
+/// physique (séance structurée, séance rapide, sport externe, mobilité, repos).
+/// Une activité peut référencer une séance existante via [linkedWorkoutSessionId].
+class ActivityLogs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get type => text()(); // ActivityType.name
+  TextColumn get sportType => text().nullable()(); // SportType.name (si sport)
+  TextColumn get source => text().withDefault(const Constant('manual'))();
+  IntColumn get durationSeconds => integer().nullable()();
+  IntColumn get rpe => integer().nullable()(); // 1-10 (§4.3)
+  TextColumn get intensityLabel => text().nullable()(); // Intensity.name
+  RealColumn get caloriesEstimated => real().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get place => text().nullable()();
+  IntColumn get linkedWorkoutSessionId => integer()
+      .nullable()
+      .references(WorkoutSessions, #id, onDelete: KeyAction.setNull)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Métriques flexibles par sport (extension §7.3) : paires clé/valeur/unité
+/// (distance, allure, longueurs, blocs réussis, fatigue avant-bras, etc.).
+class ActivityMetrics extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get activityLogId =>
+      integer().references(ActivityLogs, #id, onDelete: KeyAction.cascade)();
+  TextColumn get metricKey => text()();
+  TextColumn get value => text()(); // stocké en texte (ex. "5:36" pour allure)
+  TextColumn get unit => text().nullable()();
+}

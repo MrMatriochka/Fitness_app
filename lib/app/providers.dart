@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/enums.dart';
 import '../core/database/app_database.dart';
+import '../features/activities/data/activity_repository.dart';
+import '../features/activities/domain/activity_service.dart';
 import '../features/backup/data/data_backup_service.dart';
 import '../features/calories/domain/calories_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
@@ -32,6 +34,7 @@ final progressionServiceProvider =
     Provider((ref) => const ProgressionService());
 final readinessServiceProvider = Provider((ref) => const ReadinessService());
 final recoveryServiceProvider = Provider((ref) => const RecoveryService());
+final activityServiceProvider = Provider((ref) => const ActivityService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(
@@ -47,6 +50,12 @@ final workoutRepositoryProvider = Provider(
   (ref) => WorkoutRepository(
     ref.watch(databaseProvider),
     streakService: ref.watch(streakServiceProvider),
+  ),
+);
+final activityRepositoryProvider = Provider(
+  (ref) => ActivityRepository(
+    ref.watch(databaseProvider),
+    activityService: ref.watch(activityServiceProvider),
   ),
 );
 final dataBackupServiceProvider = Provider(
@@ -148,6 +157,7 @@ void invalidateSessionData(WidgetRef ref) {
   ref.invalidate(calendarMonthProvider);
   ref.invalidate(recoveryProvider);
   ref.invalidate(recentSessionsProvider);
+  ref.invalidate(recentActivitiesProvider);
 }
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,
@@ -206,6 +216,10 @@ Intensity intensityFromDifficulty(int? difficulty) {
 /// Historique des dernières séances réalisées (onglet Progression).
 final recentSessionsProvider = FutureProvider(
     (ref) => ref.watch(workoutRepositoryProvider).recentSessions());
+
+/// Historique global des dernières activités enregistrées (extension §13).
+final recentActivitiesProvider = FutureProvider(
+    (ref) => ref.watch(activityRepositoryProvider).recentActivities());
 
 /// Charge musculaire des 7 derniers jours : par groupe, par muscle, et groupes
 /// sous-travaillés (§7, §12.5, §12.7).

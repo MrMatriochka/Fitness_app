@@ -68,9 +68,15 @@ class DataBackupService {
       'personalRecords': [
         for (final r in await _db.select(_db.personalRecords).get()) r.toJson()
       ],
+      'activityLogs': [
+        for (final r in await _db.select(_db.activityLogs).get()) r.toJson()
+      ],
+      'activityMetrics': [
+        for (final r in await _db.select(_db.activityMetrics).get()) r.toJson()
+      ],
     };
     return const JsonEncoder.withIndent('  ').convert({
-      'schema': 1,
+      'schema': 2,
       'exportedAt': DateTime.now().toIso8601String(),
       'data': data,
     });
@@ -107,6 +113,8 @@ class DataBackupService {
 
     await _db.transaction(() async {
       // Suppression enfants -> parents.
+      await _db.delete(_db.activityMetrics).go();
+      await _db.delete(_db.activityLogs).go();
       await _db.delete(_db.performedSets).go();
       await _db.delete(_db.performedExercises).go();
       await _db.delete(_db.streakEvents).go();
@@ -192,6 +200,16 @@ class DataBackupService {
         await _db
             .into(_db.personalRecords)
             .insertOnConflictUpdate(PersonalRecord.fromJson(j));
+      }
+      for (final j in rows('activityLogs')) {
+        await _db
+            .into(_db.activityLogs)
+            .insertOnConflictUpdate(ActivityLog.fromJson(j));
+      }
+      for (final j in rows('activityMetrics')) {
+        await _db
+            .into(_db.activityMetrics)
+            .insertOnConflictUpdate(ActivityMetric.fromJson(j));
       }
     });
   }

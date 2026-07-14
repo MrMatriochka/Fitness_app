@@ -357,4 +357,17 @@ class WorkoutRepository {
           ..orderBy([(t) => OrderingTerm.desc(t.date)]))
         .get();
   }
+
+  /// Nombre de séances réellement réalisées (complète, partielle ou libre) sur
+  /// la durée de vie — utilisé pour l'XP du compagnon.
+  Future<int> trainingSessionCount() async {
+    final rows = await (_db.select(_db.workoutSessions)
+          ..where((t) => t.status.isIn([
+                SessionStatus.completed.name,
+                SessionStatus.partial.name,
+                SessionStatus.freeSession.name,
+              ])))
+        .get();
+    return rows.length;
+  }
 }

@@ -125,6 +125,12 @@ class ActivityRepository {
         .get();
   }
 
+  /// Nombre total d'activités enregistrées (pour l'XP du compagnon).
+  Future<int> activityCount() async {
+    final rows = await _db.select(_db.activityLogs).get();
+    return rows.length;
+  }
+
   /// Les [limit] dernières activités enregistrées.
   Future<List<ActivityLog>> recentActivities({int limit = 20}) {
     return (_db.select(_db.activityLogs)

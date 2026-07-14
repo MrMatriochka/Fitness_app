@@ -7,6 +7,7 @@ import '../features/activities/domain/activity_impact_service.dart';
 import '../features/activities/domain/activity_service.dart';
 import '../features/backup/data/data_backup_service.dart';
 import '../features/calories/domain/calories_service.dart';
+import '../features/companion/domain/badge_service.dart';
 import '../features/companion/domain/companion_service.dart';
 import '../features/companion/domain/companion_xp_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
@@ -49,6 +50,7 @@ final companionMessageServiceProvider =
     Provider((ref) => const CompanionMessageService());
 final companionXpServiceProvider =
     Provider((ref) => const CompanionXpService());
+final badgeServiceProvider = Provider((ref) => const BadgeService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(
@@ -203,6 +205,7 @@ void invalidateSessionData(WidgetRef ref) {
   ref.invalidate(recentActivitiesProvider);
   ref.invalidate(companionProvider);
   ref.invalidate(companionProgressProvider);
+  ref.invalidate(badgesProvider);
 }
 
 /// État du compagnon d'accueil + message du jour (extension §8-10). Calculé à
@@ -309,6 +312,39 @@ final companionProgressProvider = FutureProvider<CompanionXpResult>((ref) async 
   );
 
   return service.compute(input);
+});
+
+/// Badges obtenus + progression (§13 V2), évalués sur l'historique complet.
+final badgesProvider =
+    FutureProvider<({List<BadgeStatus> all, int earned})>((ref) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final activityRepo = ref.watch(activityRepositoryProvider);
+  final service = ref.watch(badgeServiceProvider);
+
+  final activities = await activityRepo.allActivities();
+  final distinctSports = <String>{
+    for (final a in activities)
+      if (a.sportType != null) a.sportType!,
+  }.length;
+
+  final days = await workoutRepo.allStreakDays();
+  final restDays = days.where((d) => d.type == StreakEventType.restDay).length;
+
+  final streak = await ref.watch(streakSummaryProvider.future);
+  final records = await workoutRepo.recordsSince(DateTime(2000));
+
+  final stats = BadgeStats(
+    totalSessions: await workoutRepo.trainingSessionCount(),
+    totalActivities: activities.length,
+    activityStreak: streak.activity,
+    programStreak: streak.program,
+    distinctSports: distinctSports,
+    personalRecords: records.length,
+    restDays: restDays,
+  );
+
+  final all = service.evaluate(stats);
+  return (all: all, earned: all.where((b) => b.earned).length);
 });
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,

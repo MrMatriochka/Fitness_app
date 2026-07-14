@@ -8,6 +8,7 @@ import '../features/activities/domain/activity_service.dart';
 import '../features/backup/data/data_backup_service.dart';
 import '../features/calories/domain/calories_service.dart';
 import '../features/companion/domain/companion_service.dart';
+import '../features/companion/domain/companion_xp_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
 import '../features/debug/data/debug_repository.dart';
 import '../features/exercises/data/exercise_repository.dart';
@@ -46,6 +47,8 @@ final quickWorkoutGeneratorServiceProvider =
 final companionServiceProvider = Provider((ref) => const CompanionService());
 final companionMessageServiceProvider =
     Provider((ref) => const CompanionMessageService());
+final companionXpServiceProvider =
+    Provider((ref) => const CompanionXpService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(
@@ -199,6 +202,7 @@ void invalidateSessionData(WidgetRef ref) {
   ref.invalidate(recentSessionsProvider);
   ref.invalidate(recentActivitiesProvider);
   ref.invalidate(companionProvider);
+  ref.invalidate(companionProgressProvider);
 }
 
 /// État du compagnon d'accueil + message du jour (extension §8-10). Calculé à
@@ -257,6 +261,54 @@ final companionProvider =
 
   final state = service.assess(snapshot);
   return (state: state, message: messages.message(snapshot, state));
+});
+
+/// Progression du compagnon par domaine (§9.2, V2) : Force / Cardio / Mobilité /
+/// Récupération / Régularité / Exploration, + trait de profil dominant.
+final companionProgressProvider = FutureProvider<CompanionXpResult>((ref) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final activityRepo = ref.watch(activityRepositoryProvider);
+  final service = ref.watch(companionXpServiceProvider);
+
+  const cardioSports = {
+    SportType.running,
+    SportType.cycling,
+    SportType.swimming,
+    SportType.football,
+    SportType.padel,
+  };
+  const mobilitySports = {SportType.yoga, SportType.mobility};
+  const recoverySports = {SportType.walking, SportType.hiking};
+
+  final activities = await activityRepo.allActivities();
+  final sports = [
+    for (final a in activities)
+      if (a.sportType != null)
+        enumFromName(SportType.values, a.sportType, SportType.other),
+  ];
+
+  int countSports(Set<SportType> set) =>
+      sports.where(set.contains).length;
+
+  final days = await workoutRepo.allStreakDays();
+  final restDays = days.where((d) => d.type == StreakEventType.restDay).length;
+  final programDays =
+      days.where((d) => d.type == StreakEventType.programRespected).length;
+  final records = await workoutRepo.recordsSince(DateTime(2000));
+
+  final input = CompanionXpInput(
+    strengthSessions: await workoutRepo.trainingSessionCount(),
+    climbingSessions: sports.where((s) => s == SportType.climbing).length,
+    cardioActivities: countSports(cardioSports),
+    mobilityActivities: countSports(mobilitySports),
+    recoveryActivities: countSports(recoverySports),
+    restDays: restDays,
+    programRespectedDays: programDays,
+    personalRecords: records.length,
+    distinctSports: sports.toSet().length,
+  );
+
+  return service.compute(input);
 });
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,

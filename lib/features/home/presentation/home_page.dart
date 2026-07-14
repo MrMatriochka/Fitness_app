@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
 import '../../activities/presentation/add_activity_page.dart';
+import '../../companion/domain/companion_service.dart';
 import '../../cycles/data/cycle_repository.dart';
 import '../../cycles/presentation/cycle_builder_page.dart';
 import '../../muscles/domain/recovery_service.dart';
@@ -36,6 +37,7 @@ class HomePage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(streakSummaryProvider);
           ref.invalidate(todayPlannedProvider);
+          ref.invalidate(companionProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -53,6 +55,8 @@ class HomePage extends ConsumerWidget {
               loading: () => const _LoadingCard(),
               error: (e, _) => _ErrorCard('$e'),
             ),
+            const SizedBox(height: 12),
+            const _CompanionCard(),
             const SizedBox(height: 12),
             const _StreakRow(),
             const SizedBox(height: 12),
@@ -111,6 +115,113 @@ class HomePage extends ConsumerWidget {
     );
     ref.invalidate(todayTemplateProvider);
     ref.invalidate(todayPlannedProvider);
+  }
+}
+
+/// Compagnon d'accueil « Tamagotchi » (§8-10). Affiche l'avatar, son niveau,
+/// son énergie/humeur et un message du jour bienveillant.
+class _CompanionCard extends ConsumerWidget {
+  const _CompanionCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final companion = ref.watch(companionProvider);
+    return Card(
+      color: Theme.of(context).colorScheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: companion.when(
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(8),
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          error: (e, _) => Text('Coach indisponible : $e'),
+          data: (c) {
+            final state = c.state;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_energyEmoji(state.energy),
+                    style: const TextStyle(fontSize: 40)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Niveau ${state.level} · ${state.levelTitle}',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          Chip(
+                            label: Text(_energyLabel(state.energy)),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          Chip(
+                            label: Text(_moodLabel(state.mood)),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(c.message),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _energyEmoji(CompanionEnergy e) {
+    switch (e) {
+      case CompanionEnergy.tired:
+        return '😴';
+      case CompanionEnergy.normal:
+        return '🙂';
+      case CompanionEnergy.motivated:
+        return '😃';
+      case CompanionEnergy.fit:
+        return '💪';
+      case CompanionEnergy.onFire:
+        return '🔥';
+    }
+  }
+
+  String _energyLabel(CompanionEnergy e) {
+    switch (e) {
+      case CompanionEnergy.tired:
+        return 'Fatigué';
+      case CompanionEnergy.normal:
+        return 'Normal';
+      case CompanionEnergy.motivated:
+        return 'Motivé';
+      case CompanionEnergy.fit:
+        return 'En forme';
+      case CompanionEnergy.onFire:
+        return 'En feu';
+    }
+  }
+
+  String _moodLabel(CompanionMood m) {
+    switch (m) {
+      case CompanionMood.rested:
+        return 'Reposé';
+      case CompanionMood.neutral:
+        return 'Neutre';
+      case CompanionMood.content:
+        return 'Content';
+      case CompanionMood.boosted:
+        return 'Boosté';
+      case CompanionMood.proud:
+        return 'Fier';
+    }
   }
 }
 

@@ -6,6 +6,7 @@ import '../features/activities/data/activity_repository.dart';
 import '../features/activities/domain/activity_service.dart';
 import '../features/backup/data/data_backup_service.dart';
 import '../features/calories/domain/calories_service.dart';
+import '../features/companion/domain/companion_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
 import '../features/debug/data/debug_repository.dart';
 import '../features/exercises/data/exercise_repository.dart';
@@ -39,6 +40,9 @@ final recoveryServiceProvider = Provider((ref) => const RecoveryService());
 final activityServiceProvider = Provider((ref) => const ActivityService());
 final quickWorkoutGeneratorServiceProvider =
     Provider((ref) => const QuickWorkoutGeneratorService());
+final companionServiceProvider = Provider((ref) => const CompanionService());
+final companionMessageServiceProvider =
+    Provider((ref) => const CompanionMessageService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(
@@ -169,7 +173,64 @@ void invalidateSessionData(WidgetRef ref) {
   ref.invalidate(recoveryProvider);
   ref.invalidate(recentSessionsProvider);
   ref.invalidate(recentActivitiesProvider);
+  ref.invalidate(companionProvider);
 }
+
+/// État du compagnon d'accueil + message du jour (extension §8-10). Calculé à
+/// partir de l'historique récent (séances, activités, flammes, repos prévu).
+final companionProvider =
+    FutureProvider<({CompanionState state, String message})>((ref) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final activityRepo = ref.watch(activityRepositoryProvider);
+  final service = ref.watch(companionServiceProvider);
+  final messages = ref.watch(companionMessageServiceProvider);
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final weekStart = today.subtract(const Duration(days: 6)); // 7 jours glissants
+  final endExclusive = today.add(const Duration(days: 1));
+
+  bool isTraining(WorkoutSession s) =>
+      s.status == SessionStatus.completed.name ||
+      s.status == SessionStatus.partial.name ||
+      s.status == SessionStatus.freeSession.name;
+
+  final sessions = (await workoutRepo.sessionsBetween(weekStart, endExclusive))
+      .where(isTraining)
+      .toList();
+  final activities = await activityRepo.activitiesBetween(weekStart, endExclusive);
+
+  String dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
+  final activeDays = <String>{
+    for (final s in sessions) dayKey(s.date),
+    for (final a in activities) dayKey(a.date),
+  };
+  final todayKey = dayKey(today);
+  final trainedOrActiveToday = activeDays.contains(todayKey);
+
+  final streak = await ref.watch(streakSummaryProvider.future);
+  final cycle = await ref.watch(activeCycleProvider.future);
+  final todayTemplate = await ref.watch(todayTemplateProvider.future);
+  final records = await workoutRepo.recordsSince(weekStart);
+  final profile = await ref.watch(profileRepositoryProvider).getProfile();
+
+  final snapshot = CompanionSnapshot(
+    activeDaysLast7: activeDays.length,
+    sessionsLast7: sessions.length,
+    activitiesLast7: activities.length,
+    activityStreak: streak.activity,
+    programStreak: streak.program,
+    trainedOrActiveToday: trainedOrActiveToday,
+    restPlannedToday: cycle != null && todayTemplate == null,
+    newRecordLast7: records.isNotEmpty,
+    lifetimeSessions: await workoutRepo.trainingSessionCount(),
+    lifetimeActivities: await activityRepo.activityCount(),
+    sessionsPerWeekGoal: profile?.sessionsPerWeekGoal ?? 3,
+  );
+
+  final state = service.assess(snapshot);
+  return (state: state, message: messages.message(snapshot, state));
+});
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,
 /// nouveaux records.

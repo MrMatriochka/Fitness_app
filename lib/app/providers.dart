@@ -10,6 +10,7 @@ import '../features/calories/domain/calories_service.dart';
 import '../features/companion/domain/badge_service.dart';
 import '../features/companion/domain/companion_service.dart';
 import '../features/companion/domain/companion_xp_service.dart';
+import '../features/companion/domain/weekly_quest_service.dart';
 import '../features/cycles/data/cycle_repository.dart';
 import '../features/debug/data/debug_repository.dart';
 import '../features/exercises/data/exercise_repository.dart';
@@ -51,6 +52,8 @@ final companionMessageServiceProvider =
 final companionXpServiceProvider =
     Provider((ref) => const CompanionXpService());
 final badgeServiceProvider = Provider((ref) => const BadgeService());
+final weeklyQuestServiceProvider =
+    Provider((ref) => const WeeklyQuestService());
 
 // --- Repositories ---
 final profileRepositoryProvider = Provider(
@@ -206,6 +209,7 @@ void invalidateSessionData(WidgetRef ref) {
   ref.invalidate(companionProvider);
   ref.invalidate(companionProgressProvider);
   ref.invalidate(badgesProvider);
+  ref.invalidate(weeklyQuestsProvider);
 }
 
 /// État du compagnon d'accueil + message du jour (extension §8-10). Calculé à
@@ -345,6 +349,67 @@ final badgesProvider =
 
   final all = service.evaluate(stats);
   return (all: all, earned: all.where((b) => b.earned).length);
+});
+
+/// Quêtes de la semaine en cours (§13 V2).
+final weeklyQuestsProvider =
+    FutureProvider<({List<QuestStatus> quests, int done})>((ref) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final activityRepo = ref.watch(activityRepositoryProvider);
+  final service = ref.watch(weeklyQuestServiceProvider);
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final weekStart = today.subtract(Duration(days: now.weekday - 1));
+  final end = today.add(const Duration(days: 1));
+
+  bool isTraining(WorkoutSession s) =>
+      s.status == SessionStatus.completed.name ||
+      s.status == SessionStatus.partial.name ||
+      s.status == SessionStatus.freeSession.name;
+
+  final sessions = (await workoutRepo.sessionsBetween(weekStart, end))
+      .where(isTraining)
+      .toList();
+  final activities = await activityRepo.activitiesBetween(weekStart, end);
+  final events = await workoutRepo.streakEventsBetween(weekStart, end);
+
+  var minutes = 0;
+  for (final s in sessions) {
+    minutes += ((s.durationSeconds ?? 0) / 60).round();
+  }
+  for (final a in activities) {
+    minutes += ((a.durationSeconds ?? 0) / 60).round();
+  }
+
+  final restDays = events
+      .where((e) =>
+          enumFromName(StreakEventType.values, e.type, StreakEventType.activity) ==
+          StreakEventType.restDay)
+      .length;
+  final mobilityActs = activities
+      .where((a) => a.type == ActivityType.mobility.name)
+      .length;
+
+  final distinctSports = <String>{
+    for (final a in activities)
+      if (a.sportType != null) a.sportType!,
+  }.length;
+  final distinctKinds = (sessions.isNotEmpty ? 1 : 0) + distinctSports;
+
+  final profile = await ref.watch(profileRepositoryProvider).getProfile();
+
+  final progress = WeeklyProgress(
+    sessionsThisWeek: sessions.length,
+    activitiesThisWeek: activities.length,
+    mobilityOrRestThisWeek: mobilityActs + restDays,
+    distinctKindsThisWeek: distinctKinds,
+    activeMinutesThisWeek: minutes,
+    sessionsGoal: profile?.sessionsPerWeekGoal ?? 3,
+  );
+
+  final quests = service.evaluate(progress);
+  return (quests: quests, done: quests.where((q) => q.done).length);
 });
 
 /// Bilan de la semaine en cours (§13.6) : séances, durée, calories estimées,

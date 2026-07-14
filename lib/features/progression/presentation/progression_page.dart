@@ -6,6 +6,7 @@ import '../../../core/constants/enums.dart';
 import '../../../core/database/app_database.dart';
 import '../../activities/presentation/activity_labels.dart';
 import '../../activities/presentation/add_activity_page.dart';
+import '../../companion/presentation/badges_page.dart';
 import 'personal_records_page.dart';
 
 /// Onglet Progression (§8.6) : bilan hebdo, charge musculaire, historique des
@@ -39,6 +40,16 @@ class ProgressionPage extends ConsumerWidget {
               ),
               icon: const Icon(Icons.emoji_events_outlined),
               label: const Text('Mes records personnels'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const BadgesPage(),
+                ),
+              ),
+              icon: const Icon(Icons.military_tech_outlined),
+              label: const Text('Mes badges'),
             ),
             const SizedBox(height: 16),
             Text('Historique des séances',

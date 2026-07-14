@@ -133,6 +133,9 @@ class ActivityRepository {
     return rows.length;
   }
 
+  /// Toutes les activités (pour l'agrégation d'XP par domaine du compagnon).
+  Future<List<ActivityLog>> allActivities() => _db.select(_db.activityLogs).get();
+
   /// Les [limit] dernières activités enregistrées.
   Future<List<ActivityLog>> recentActivities({int limit = 20}) {
     return (_db.select(_db.activityLogs)

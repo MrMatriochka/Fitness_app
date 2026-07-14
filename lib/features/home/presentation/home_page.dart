@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../activities/presentation/add_activity_page.dart';
 import '../../companion/domain/companion_service.dart';
+import '../../companion/domain/companion_xp_service.dart';
 import '../../cycles/data/cycle_repository.dart';
 import '../../cycles/presentation/cycle_builder_page.dart';
 import '../../muscles/domain/recovery_service.dart';
@@ -38,6 +39,7 @@ class HomePage extends ConsumerWidget {
           ref.invalidate(streakSummaryProvider);
           ref.invalidate(todayPlannedProvider);
           ref.invalidate(companionProvider);
+          ref.invalidate(companionProgressProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -155,6 +157,7 @@ class _CompanionCard extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Wrap(
                         spacing: 8,
+                        runSpacing: 4,
                         children: [
                           Chip(
                             label: Text(_energyLabel(state.energy)),
@@ -164,10 +167,12 @@ class _CompanionCard extends ConsumerWidget {
                             label: Text(_moodLabel(state.mood)),
                             visualDensity: VisualDensity.compact,
                           ),
+                          const _TraitChip(),
                         ],
                       ),
                       const SizedBox(height: 8),
                       Text(c.message),
+                      const _CompanionDomains(),
                     ],
                   ),
                 ),
@@ -222,6 +227,75 @@ class _CompanionCard extends ConsumerWidget {
       case CompanionMood.proud:
         return 'Fier';
     }
+  }
+}
+
+/// Puce « trait de profil » du compagnon selon son domaine dominant (§9.3).
+class _TraitChip extends ConsumerWidget {
+  const _TraitChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(companionProgressProvider);
+    final trait = progress.valueOrNull?.traitLabel;
+    if (trait == null) return const SizedBox.shrink();
+    return Chip(
+      label: Text(trait),
+      visualDensity: VisualDensity.compact,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+    );
+  }
+}
+
+/// Barres d'XP par domaine du compagnon (§9.2). N'affiche que les domaines
+/// déjà entamés.
+class _CompanionDomains extends ConsumerWidget {
+  const _CompanionDomains();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(companionProgressProvider);
+    final result = progress.valueOrNull;
+    if (result == null || result.total <= 0) return const SizedBox.shrink();
+
+    final service = ref.read(companionXpServiceProvider);
+    final entries = result.byDomain.entries.where((e) => e.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final maxXp = entries.first.value;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final e in entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 96,
+                    child: Text(service.domainLabel(e.key),
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: maxXp == 0 ? 0 : e.value / maxXp,
+                        minHeight: 7,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('${e.value}',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

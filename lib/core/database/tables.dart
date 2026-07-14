@@ -216,3 +216,12 @@ class ActivityMetrics extends Table {
   TextColumn get value => text()(); // stocké en texte (ex. "5:36" pour allure)
   TextColumn get unit => text().nullable()();
 }
+
+/// Séance rapide sauvegardée comme favorite (extension §3.3). Le contenu (liste
+/// d'exercices avec cibles) est sérialisé en JSON pour rester flexible.
+class FavoriteWorkouts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get payloadJson => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}

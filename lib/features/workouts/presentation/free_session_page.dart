@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/enums.dart';
 import '../../../core/database/app_database.dart';
+import '../data/favorite_repository.dart';
 import '../data/workout_repository.dart';
+import '../domain/quick_workout_generator_service.dart';
 
 /// Un exercice choisi pour la séance libre, avec ses cibles et les séries
 /// validées.
@@ -71,6 +73,32 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
             onPressed: _pickExpress,
             icon: const Icon(Icons.timer_outlined),
             label: const Text('Séance express (10 / 15 / 20 min)'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: _generate,
+            icon: const Icon(Icons.auto_awesome),
+            label: const Text('Générer une séance rapide'),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _loadFavorites,
+                  icon: const Icon(Icons.star_outline),
+                  label: const Text('Mes favoris'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _items.isEmpty ? null : _saveFavorite,
+                  icon: const Icon(Icons.star),
+                  label: const Text('Sauver en favori'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           if (_items.isEmpty)
@@ -321,6 +349,167 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
     });
   }
 
+  /// Génère une séance rapide (§3.2) à partir de paramètres simples.
+  Future<void> _generate() async {
+    final params = await showDialog<_GenParams>(
+      context: context,
+      builder: (context) => const _GenerateDialog(),
+    );
+    if (params == null) return;
+
+    final all = await ref.read(exerciseRepositoryProvider).getAll();
+    if (!mounted) return;
+    final byId = {for (final e in all) e.id: e};
+    final pool = [
+      for (final e in all)
+        QuickCandidate(
+          id: e.id,
+          name: e.name,
+          group: e.category,
+          equipment: e.equipment,
+          isTimeBased: _isTimeBased(e),
+        ),
+    ];
+
+    final plan = ref.read(quickWorkoutGeneratorServiceProvider).generate(
+          durationMinutes: params.durationMinutes,
+          objective: params.objective,
+          availableEquipment: params.equipment,
+          constraints: params.constraints,
+          pool: pool,
+        );
+
+    if (plan.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Aucun exercice ne correspond à ces critères.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _items
+        ..clear()
+        ..addAll(plan.items.where((i) => byId.containsKey(i.exerciseId)).map(
+              (i) => _FreeItem(
+                exercise: byId[i.exerciseId]!,
+                sets: i.sets,
+                targetReps: i.reps,
+                targetSeconds: i.seconds,
+              ),
+            ));
+    });
+  }
+
+  bool _isTimeBased(Exercise e) {
+    final type =
+        enumFromName(MeasurementType.values, e.measurementType, MeasurementType.reps);
+    return type == MeasurementType.time || type == MeasurementType.timeWeight;
+  }
+
+  Future<void> _saveFavorite() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nom du favori'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Ex. séance express abdos',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+
+    final items = [
+      for (final it in _items)
+        FavoriteItem(
+          exerciseId: it.exercise.id,
+          sets: it.sets,
+          reps: it.targetReps,
+          seconds: it.targetSeconds,
+          weightKg: it.targetWeightKg,
+        ),
+    ];
+    await ref.read(favoriteWorkoutRepositoryProvider).saveFavorite(name, items);
+    ref.invalidate(favoritesProvider);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Favori « $name » enregistré ⭐')),
+    );
+  }
+
+  Future<void> _loadFavorites() async {
+    final repo = ref.read(favoriteWorkoutRepositoryProvider);
+    final favorites = await repo.getAll();
+    if (!mounted) return;
+    if (favorites.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Aucun favori. Construis une séance et sauvegarde-la.')),
+      );
+      return;
+    }
+
+    final chosen = await showDialog<FavoriteWorkout>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Mes séances favorites'),
+        children: [
+          for (final f in favorites)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, f),
+              child: Row(
+                children: [
+                  Expanded(child: Text(f.name)),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () async {
+                      await repo.deleteFavorite(f.id);
+                      ref.invalidate(favoritesProvider);
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (chosen == null) return;
+
+    final favItems = repo.itemsOf(chosen);
+    final all = await ref.read(exerciseRepositoryProvider).getAll();
+    if (!mounted) return;
+    final byId = {for (final e in all) e.id: e};
+    setState(() {
+      _items
+        ..clear()
+        ..addAll(favItems.where((i) => byId.containsKey(i.exerciseId)).map(
+              (i) => _FreeItem(
+                exercise: byId[i.exerciseId]!,
+                sets: i.sets,
+                targetReps: i.reps,
+                targetSeconds: i.seconds,
+                targetWeightKg: i.weightKg,
+              ),
+            ));
+    });
+  }
+
   Future<void> _save() async {
     if (!_items.any((item) => item.done.isNotEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -370,5 +559,153 @@ class _FreeSessionPageState extends ConsumerState<FreeSessionPage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+/// Paramètres d'une séance rapide générée (§3.2).
+class _GenParams {
+  const _GenParams({
+    required this.durationMinutes,
+    required this.objective,
+    required this.equipment,
+    required this.constraints,
+  });
+
+  final int durationMinutes;
+  final QuickObjective objective;
+  final Set<String> equipment;
+  final QuickConstraints constraints;
+}
+
+String _objectiveLabel(QuickObjective o) {
+  switch (o) {
+    case QuickObjective.fullBody:
+      return 'Full body';
+    case QuickObjective.push:
+      return 'Push';
+    case QuickObjective.pull:
+      return 'Pull';
+    case QuickObjective.legs:
+      return 'Jambes';
+    case QuickObjective.core:
+      return 'Core';
+    case QuickObjective.mobility:
+      return 'Mobilité';
+  }
+}
+
+class _GenerateDialog extends StatefulWidget {
+  const _GenerateDialog();
+
+  @override
+  State<_GenerateDialog> createState() => _GenerateDialogState();
+}
+
+class _GenerateDialogState extends State<_GenerateDialog> {
+  int _minutes = 15;
+  QuickObjective _objective = QuickObjective.fullBody;
+  final Set<String> _equipment = {'tapis'};
+  bool _noLegs = false;
+  bool _noPullUpBar = false;
+
+  static const _equipmentOptions = [
+    'haltères',
+    'barre de traction',
+    'barres parallèles',
+    'tapis',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Séance rapide générée'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Durée disponible'),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final m in [5, 10, 15, 20, 30])
+                  ChoiceChip(
+                    label: Text('$m min'),
+                    selected: _minutes == m,
+                    onSelected: (_) => setState(() => _minutes = m),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text('Objectif'),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<QuickObjective>(
+              initialValue: _objective,
+              decoration: const InputDecoration(isDense: true),
+              items: [
+                for (final o in QuickObjective.values)
+                  DropdownMenuItem(value: o, child: Text(_objectiveLabel(o))),
+              ],
+              onChanged: (v) =>
+                  setState(() => _objective = v ?? QuickObjective.fullBody),
+            ),
+            const SizedBox(height: 16),
+            const Text('Matériel disponible'),
+            for (final e in _equipmentOptions)
+              CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(e),
+                value: _equipment.contains(e),
+                onChanged: (v) => setState(() {
+                  if (v == true) {
+                    _equipment.add(e);
+                  } else {
+                    _equipment.remove(e);
+                  }
+                }),
+              ),
+            const SizedBox(height: 8),
+            const Text('Contraintes'),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Pas de jambes'),
+              value: _noLegs,
+              onChanged: (v) => setState(() => _noLegs = v),
+            ),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Pas de barre de traction'),
+              value: _noPullUpBar,
+              onChanged: (v) => setState(() => _noPullUpBar = v),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _GenParams(
+              durationMinutes: _minutes,
+              objective: _objective,
+              equipment: _equipment,
+              constraints: QuickConstraints(
+                noLegs: _noLegs,
+                noPullUpBar: _noPullUpBar,
+              ),
+            ),
+          ),
+          child: const Text('Générer'),
+        ),
+      ],
+    );
   }
 }

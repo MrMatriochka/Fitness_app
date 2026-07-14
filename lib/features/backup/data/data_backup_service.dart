@@ -74,9 +74,12 @@ class DataBackupService {
       'activityMetrics': [
         for (final r in await _db.select(_db.activityMetrics).get()) r.toJson()
       ],
+      'favoriteWorkouts': [
+        for (final r in await _db.select(_db.favoriteWorkouts).get()) r.toJson()
+      ],
     };
     return const JsonEncoder.withIndent('  ').convert({
-      'schema': 2,
+      'schema': 3,
       'exportedAt': DateTime.now().toIso8601String(),
       'data': data,
     });
@@ -113,6 +116,7 @@ class DataBackupService {
 
     await _db.transaction(() async {
       // Suppression enfants -> parents.
+      await _db.delete(_db.favoriteWorkouts).go();
       await _db.delete(_db.activityMetrics).go();
       await _db.delete(_db.activityLogs).go();
       await _db.delete(_db.performedSets).go();
@@ -210,6 +214,11 @@ class DataBackupService {
         await _db
             .into(_db.activityMetrics)
             .insertOnConflictUpdate(ActivityMetric.fromJson(j));
+      }
+      for (final j in rows('favoriteWorkouts')) {
+        await _db
+            .into(_db.favoriteWorkouts)
+            .insertOnConflictUpdate(FavoriteWorkout.fromJson(j));
       }
     });
   }

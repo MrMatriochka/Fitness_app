@@ -31,6 +31,7 @@ part 'app_database.g.dart';
     PersonalRecords,
     ActivityLogs,
     ActivityMetrics,
+    FavoriteWorkouts,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -40,7 +41,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -54,6 +55,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             await m.createTable(activityLogs);
             await m.createTable(activityMetrics);
+          }
+          // v2 -> v3 : favoris de séances rapides (extension §3.3).
+          if (from < 3) {
+            await m.createTable(favoriteWorkouts);
           }
         },
         beforeOpen: (details) async {

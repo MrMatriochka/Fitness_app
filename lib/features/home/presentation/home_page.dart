@@ -63,6 +63,8 @@ class HomePage extends ConsumerWidget {
             const SizedBox(height: 12),
             const _QuickActionsCard(),
             const SizedBox(height: 12),
+            const _WeeklyQuestsCard(),
+            const SizedBox(height: 12),
             cycle.when(
               data: (c) => c == null
                   ? _NoCycleCard(
@@ -293,6 +295,79 @@ class _CompanionDomains extends ConsumerWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Quêtes de la semaine (§13 V2) : objectifs cochés au fil de la semaine.
+class _WeeklyQuestsCard extends ConsumerWidget {
+  const _WeeklyQuestsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quests = ref.watch(weeklyQuestsProvider);
+    return quests.when(
+      loading: () => const _LoadingCard(),
+      error: (e, _) => _ErrorCard('$e'),
+      data: (data) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Quêtes de la semaine',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  Text('${data.done}/${data.quests.length}',
+                      style: Theme.of(context).textTheme.titleMedium),
+                ],
+              ),
+              const SizedBox(height: 8),
+              for (final q in data.quests)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        q.done
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: q.done
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).disabledColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${q.def.emoji} ${q.def.title}'),
+                            if (!q.done) ...[
+                              const SizedBox(height: 4),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: q.progress,
+                                  minHeight: 5,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('${q.current}/${q.target}',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
